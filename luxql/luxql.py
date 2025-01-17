@@ -1,3 +1,4 @@
+import re
 import json
 import requests
 
@@ -13,6 +14,7 @@ config = dict(
     events="event",
     set="set",
     booleans = ["AND", "OR", "NOT"],
+    comparitors = [">", "<", ">=", "<=", "="],
     auto_add = True
 )
 
@@ -27,6 +29,9 @@ class LuxConfig(object):
         else:
             raise ValueError(f"Couldn't retrieve configuration from {url}")
         self.scopes = list(self.lux_config['terms'].keys())
+
+        # The format is 'YYYY-MM-DDThh:mm:ss.000Z' or '-YYYYYY-MM-DDThh:mm:ss.000Z'
+        self.valid_date_re = re.compile(r"((-[0-9][0-9])?[0-9]{4})(-[0-1][0-9]-[0-3][0-9](T[0-2][0-9]:[0-5][0-9]:[0-5][0-9])?)?")
 
 _cached_lux_config = LuxConfig(config)
 
@@ -153,16 +158,31 @@ class LuxLeaf(LuxQuery):
             pass
         elif info['relation'] == 'date':
             # test value is a datestring
-            pass
+            if not self.config.valid_date_re.match(self.value):
+                raise ValueError(f"Dates require a specific format: 'YYYY-MM-DDThh:mm:ss.000Z' or '-YYYYYY-MM-DDThh:mm:ss.000Z'")
+            # Test there's a comparitor
+            if not self.comparitor:
+                raise ValueError(f"Dates require a comparitor")
+            elif not self.comparitor in self.config.module_config['comparitors']:
+                raise ValueError(f"{self.comparitor} is not a valid comparitor")
         elif info['relation'] == 'float':
             # test value is a number
-            pass
+            try:
+                f = float(self.value)
+            except ValueError:
+                raise ValueError(f"Numbers must be expressed using only numbers and .")
+            if not self.comparitor:
+                raise ValueError(f"Numbers require a comparitor")
+            elif not self.comparitor in self.config.module_config['comparitors']:
+                raise ValueError(f"{self.comparitor} is not a valid comparitor")
         elif info['relation'] == 'boolean':
             # test is bool
             pass
         else:
             # broken??
             raise ValueError(f"Unknown scope: {info['relation']}")
+
+
         self.provides_scope = info['relation']
 
     def add(self, what):
