@@ -37,8 +37,7 @@ _cached_lux_config = LuxConfig(config)
 
 
 ### To do
-
-# Finish validation of data types and comparitors
+# Deal with options
 # Allow grafting between query trees
 # Consider refactor so that validation happens on add() so you can construct a branch
 #     and then try to add it to a tree. Otherwise always add?
@@ -80,17 +79,17 @@ class LuxAPI(LuxScope):
 
     def get(self):
         """This is where wrappers would make the URL, retrieve it and process"""
-        pass
+        q = json.dumps(self.to_json())
+        print(q)
 
 
 class LuxQuery(LuxScope):
     """Abstract base class for the different parts of the LUX query language"""
 
-    def __init__(self, field, parent=None, options=[]):
+    def __init__(self, field, parent=None):
         super().__init__(None)
         self.class_name = "Query Component"
         self.field = field
-        self.options = options
         self.parent = parent
         self.requires_scope = None
 
@@ -135,8 +134,8 @@ class LuxBoolean(LuxQuery):
 class LuxLeaf(LuxQuery):
     """A Leaf node in the query, where the field + (comparitor +) term (+ options) sits"""
 
-    def __init__(self, field, parent=None, options=[], value=None, comparitor=None):
-        super().__init__(field, parent=parent, options=options)
+    def __init__(self, field, parent=None, value=None, comparitor=None, options=[], weight=0, complete=False):
+        super().__init__(field, parent=parent)
         # Can field exist within current scope?
         self.class_name = "Leaf"
         if isinstance(value, bool):
@@ -145,7 +144,10 @@ class LuxLeaf(LuxQuery):
             value = str(value)
         self.value = value
         self.comparitor = comparitor
+        self.options = options
         self.children = None
+        self.weight = weight
+        self.complete = complete
         info = self.test_parent_scope()
         self.test_my_scope(info)
         self.add_to_parent()
@@ -159,7 +161,12 @@ class LuxLeaf(LuxQuery):
             raise ValueError(f"Cannot create a {self.class_name} calls {self.field} as it is a Relationship")
         elif info['relation'] == 'text':
             # value must be a string
-            pass
+            if "allowedOptionsName" in info:
+                optName = info['allowedOptionsName']
+                okay_opts = self.config.lux_config['options'][optName]['allowed']
+                for o in self.options:
+                    if not o in okay_opts:
+                        raise ValueError(f"Unknown option specified: {o}\nAllowed: {', '.join(okay_opts)}")
         elif info['relation'] == 'date':
             # test value is a datestring
             if not self.config.valid_date_re.match(self.value):
@@ -196,6 +203,12 @@ class LuxLeaf(LuxQuery):
         js = {self.field: self.value}
         if self.comparitor:
             js['_comp'] = self.comparitor
+        if self.options:
+            js['_options'] = self.options
+        if self.weight:
+            js['_weight'] = self.weight
+        if self.complete:
+            js['_complete'] = True if self.complete else False
         return js
 
 class LuxRelationship(LuxQuery):
