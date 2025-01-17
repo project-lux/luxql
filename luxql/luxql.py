@@ -14,7 +14,7 @@ config = dict(
     events="event",
     set="set",
     booleans = ["AND", "OR", "NOT"],
-    comparitors = [">", "<", ">=", "<=", "="],
+    comparitors = [">", "<", ">=", "<=", "==", "!="],
     auto_add = True
 )
 
@@ -139,6 +139,10 @@ class LuxLeaf(LuxQuery):
         super().__init__(field, parent=parent, options=options)
         # Can field exist within current scope?
         self.class_name = "Leaf"
+        if isinstance(value, bool):
+            value = "1" if value else "0"
+        elif not isinstance(value, str):
+            value = str(value)
         self.value = value
         self.comparitor = comparitor
         self.children = None
@@ -177,11 +181,11 @@ class LuxLeaf(LuxQuery):
                 raise ValueError(f"{self.comparitor} is not a valid comparitor")
         elif info['relation'] == 'boolean':
             # test is bool
-            pass
+            if self.value not in ["0", "1"]:
+                raise ValueError(f"Booleans must be expressed as either '1' or '0'")
         else:
             # broken??
             raise ValueError(f"Unknown scope: {info['relation']}")
-
 
         self.provides_scope = info['relation']
 
