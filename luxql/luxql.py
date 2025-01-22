@@ -5,7 +5,8 @@ import requests
 config = dict(
     lux_config="https://lux.collections.yale.edu/api/advanced-search-config",
     booleans = ["AND", "OR", "NOT"],
-    comparitors = [">", "<", ">=", "<=", "==", "!="]
+    comparitors = [">", "<", ">=", "<=", "==", "!="],
+    leaf_scopes = ["text", "date", "float", "boolean"]
 )
 
 class LuxConfig(object):
@@ -161,12 +162,6 @@ class LuxLeaf(LuxQuery):
         super().__init__(field, parent=parent)
         # Can field exist within current scope?
         self.class_name = "Leaf"
-        if isinstance(value, bool):
-            value = "1" if value else "0"
-        elif value is None:
-            pass
-        elif not isinstance(value, str):
-            value = str(value)
         self.value = value
         self.comparitor = comparitor
         self.options = options
@@ -175,18 +170,30 @@ class LuxLeaf(LuxQuery):
         self.complete = complete
         self.calculate_scopes()
 
+    def calculate_scopes(self):
+        super().calculate_scopes()
+        for s in self.possible_provides_scopes:
+            if not s in self.config.module_config['leaf_scopes']:
+                raise ValueError(f"Unknown leaf scope '{s}' in {self.field}")
+            if self.value is not None:
+                self.test_my_value({'relation': s})
+
     def test_my_value(self, info):
         if info['relation'] in self.config.scopes:
             # This isn't a leaf
-            raise ValueError(f"Cannot create a {self.class_name} calls {self.field} as it is a Relationship")
+            raise ValueError(f"Cannot create a {self.class_name} called {self.field} as it is a Relationship")
         elif info['relation'] == 'text':
             # value must be a string
+            if type(self.value) != str:
+                raise ValueError(f"Text values must be strings; '{self.field}' received {self.value})")
             if "allowedOptionsName" in info:
                 optName = info['allowedOptionsName']
                 okay_opts = self.config.lux_config['options'][optName]['allowed']
                 for o in self.options:
                     if not o in okay_opts:
                         raise ValueError(f"Unknown option specified: {o}\nAllowed: {', '.join(okay_opts)}")
+        elif self.options:
+            raise ValueError("Only 'text' leaf nodes can have options")
         elif info['relation'] == 'date':
             # test value is a datestring
             if not self.config.valid_date_re.match(self.value):
@@ -208,8 +215,8 @@ class LuxLeaf(LuxQuery):
                 raise ValueError(f"{self.comparitor} is not a valid comparitor")
         elif info['relation'] == 'boolean':
             # test is bool
-            if self.value not in ["0", "1"]:
-                raise ValueError(f"Booleans must be expressed as either '1' or '0'")
+            if self.value not in ["0", "1", True, False]:
+                raise ValueError(f"Booleans must be expressed as either '1' or '0' or a native boolean")
         else:
             # broken??
             raise ValueError(f"Unknown scope: {info['relation']}")
@@ -220,7 +227,14 @@ class LuxLeaf(LuxQuery):
     def to_json(self):
         if self.value is None:
             raise ValueError(f"Leaf node '{self.field}' does not have a value set")
-        js = {self.field: self.value}
+        elif isinstance(self.value, bool):
+            value = "1" if self.value else "0"
+        elif not isinstance(self.value, str):
+            value = str(self.value)
+        else:
+            value = self.value
+
+        js = {self.field: value}
         if self.comparitor:
             js['_comp'] = self.comparitor
         if self.options:
@@ -238,6 +252,12 @@ class LuxRelationship(LuxQuery):
         super().__init__(field, parent=parent)
         self.class_name = "Relationship"
         self.calculate_scopes()
+
+    def calculate_scopes(self):
+        super().calculate_scopes()
+        for s in self.possible_provides_scopes:
+            if not s in self.config.scopes:
+                raise ValueError(f"Unknown relationship scope '{s}' in {self.field}")
 
     def test_my_value(self, info):
         if info['relation'] not in self.config.scopes:

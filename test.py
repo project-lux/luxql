@@ -70,12 +70,23 @@ class TestLuxQL(unittest.TestCase):
         leaf = LuxLeaf('name', value="okay")
         self.assertEqual(leaf.to_json(), {'name':'okay'})
 
+    def test_leaf_not_leaf(self):
+        self.assertRaises(ValueError, LuxLeaf, 'carries', value="fish")
+
     def test_leaf_bool(self):
         leaf = LuxLeaf('isOnline', value=True)
         self.assertEqual(leaf.to_json(), {'isOnline':'1'})
 
     def test_leaf_not_bool(self):
         self.assertRaises(ValueError, LuxLeaf, 'name', value=True)
+
+    def test_leaf_text_options(self):
+        leaf = LuxLeaf('name', value="okay", options=['punctuation-sensitive'])
+
+        leaf = LuxLeaf('name', value="okay", weight=3)
+
+        leaf = LuxLeaf('name', value="okay", complete=True)
+
 
     def test_leaf_no_field(self):
         self.assertRaises(TypeError, LuxLeaf)
