@@ -1,1 +1,1 @@
-from .luxql import LuxAPI, LuxLeaf, LuxBoolean, LuxRelationship
+from .luxql import LuxAPI, LuxLeaf, LuxBoolean, LuxRelationship, LuxConfig, config

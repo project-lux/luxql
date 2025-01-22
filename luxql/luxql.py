@@ -4,18 +4,8 @@ import requests
 
 config = dict(
     lux_config="https://lux.collections.yale.edu/api/advanced-search-config",
-    lux_url="https://lux.collections.yale.edu/api",
-    default="item",
-    objects="item",
-    works="work",
-    people="agent",
-    places="place",
-    concepts="concept",
-    events="event",
-    set="set",
     booleans = ["AND", "OR", "NOT"],
-    comparitors = [">", "<", ">=", "<=", "==", "!="],
-    auto_add = True
+    comparitors = [">", "<", ">=", "<=", "==", "!="]
 )
 
 class LuxConfig(object):
@@ -33,14 +23,15 @@ class LuxConfig(object):
         # The format is 'YYYY-MM-DDThh:mm:ss.000Z' or '-YYYYYY-MM-DDThh:mm:ss.000Z'
         self.valid_date_re = re.compile(r"((-[0-9][0-9])?[0-9]{4})(-[0-1][0-9]-[0-3][0-9](T[0-2][0-9]:[0-5][0-9]:[0-5][0-9])?)?")
 
+        self.inverted = {}
+        for (scope, terms) in self.lux_config['terms'].items():
+            for t in terms.keys():
+                try:
+                    self.inverted[t].append(scope)
+                except:
+                    self.inverted[t] = [scope]
+
 _cached_lux_config = LuxConfig(config)
-
-
-### To do
-# Deal with options
-# Allow grafting between query trees
-# Consider refactor so that validation happens on add() so you can construct a branch
-#     and then try to add it to a tree. Otherwise always add?
 
 
 class LuxScope(object):
@@ -52,25 +43,22 @@ class LuxScope(object):
         self.provides_scope = scope
         self.children = []
 
-    def accepts(self, field):
-        """is the field acceptable within the current query node's scope? If so, return details, if not return False"""
-        okay = self.config.lux_config['terms'][self.provides_scope]
-        return okay.get(field, False)
-
     def add(self, what):
-        # Test scope if not being called from __init__?
+        # Actually add and do a callback
         self.children.append(what)
+        what.added_to(self)
 
 
 class LuxAPI(LuxScope):
     """Minimal API instance that downstream applications should inherit"""
-    def __init__(self, scope):
-        super().__init__(scope)
 
     def add(self, what):
         if self.children:
             raise ValueError("Already have a top level query")
         super().add(what)
+
+    def added_to(self, parent):
+        raise ValueError("Cannot add the API to another part of the query")
 
     def to_json(self):
         if not self.children:
@@ -92,26 +80,57 @@ class LuxQuery(LuxScope):
         self.field = field
         self.parent = parent
         self.requires_scope = None
+        self.possible_parent_scopes = []
+        self.possible_provides_scopes = []
 
-    def test_parent_scope(self):
+    def calculate_scopes(self):
+        self.possible_parent_scopes = self.config.inverted.get(self.field, [])
+        for s in self.possible_parent_scopes:
+            prov = self.config.lux_config['terms'][s][self.field]['relation']
+            if prov not in self.possible_provides_scopes:
+                self.possible_provides_scopes.append(prov)
+        if len(self.possible_provides_scopes) == 1:
+            self.provides_scope = self.possible_provides_scopes[0]
+        elif not self.possible_provides_scopes:
+            raise ValueError(f"No possible scope for {self.class_name} component '{self.field}'")
+        elif not self.possible_parent_scopes:
+            raise ValueError(f"No possible parent scope for {self.class_name} component '{self.field}'")
         if self.parent is not None:
-            self.requires_scope = self.parent.provides_scope
-            okay = self.parent.accepts(self.field)
-            if okay is False:
-                raise ValueError(f"Cannot add a new {self.class_name} '{self.field}' to a scope of {self.parent.provides_scope}")
-            else:
-                return okay
-        return None
+            self.add_to_parent()
 
-    def test_my_scope(self, info):
+    def add(self, what):
+        # Test if we can add
+        info = self.test_child_scope(what)
+        what.test_my_value(info)
+        # If above hasn't raised, then add
+        super().add(what)
+
+    def test_child_scope(self, what):
+        # Can I accept what as a child?
+        if self.provides_scope in what.possible_parent_scopes:
+            # okay
+            info = self.config.lux_config['terms'][self.provides_scope][what.field]
+            what.set_info(info)
+            return info
+        else:
+            raise ValueError(f"Cannot add a new {what.class_name} of {what.field} to a scope of {self.provides_scope}")
+
+    def test_my_value(self, info):
         pass
 
     def add_to_parent(self):
-        if self.parent is not None and self.config.module_config['auto_add']:
+        if self.parent is not None:
             self.parent.add(self)
 
     def to_json(self):
         return {}
+
+    def added_to(self, parent):
+        pass
+
+    def set_info(self, info):
+        self.provides_scope = info['relation']
+
 
 class LuxBoolean(LuxQuery):
     """Boolean operators AND, OR and NOT"""
@@ -122,14 +141,18 @@ class LuxBoolean(LuxQuery):
         if not field in self.config.module_config['booleans']:
             raise ValueError(f"Tried to construct unknown boolean {field}; known: {self.config.module_config['booleans']}")
         # Booleans are currently accepted everywhere other than leaves, so parent scope doesn't need testing
+        self.possible_parent_scopes = self.config.scopes
         if parent is not None:
-            self.provides_scope = parent.provides_scope
-        self.add_to_parent()
+            self.add_to_parent()
 
     def to_json(self):
         if not self.children:
             raise ValueError(f"Boolean {self.field} is missing children")
         return {self.field: [x.to_json() for x in self.children]}
+
+    def added_to(self, parent):
+        self.provides_scope = parent.provides_scope
+
 
 class LuxLeaf(LuxQuery):
     """A Leaf node in the query, where the field + (comparitor +) term (+ options) sits"""
@@ -140,6 +163,8 @@ class LuxLeaf(LuxQuery):
         self.class_name = "Leaf"
         if isinstance(value, bool):
             value = "1" if value else "0"
+        elif value is None:
+            pass
         elif not isinstance(value, str):
             value = str(value)
         self.value = value
@@ -148,14 +173,9 @@ class LuxLeaf(LuxQuery):
         self.children = None
         self.weight = weight
         self.complete = complete
-        info = self.test_parent_scope()
-        self.test_my_scope(info)
-        self.add_to_parent()
+        self.calculate_scopes()
 
-    def test_my_scope(self, info):
-        # test self.value against info['relation']
-        # Also test comparitors and options are acceptable for scope
-
+    def test_my_value(self, info):
         if info['relation'] in self.config.scopes:
             # This isn't a leaf
             raise ValueError(f"Cannot create a {self.class_name} calls {self.field} as it is a Relationship")
@@ -194,12 +214,12 @@ class LuxLeaf(LuxQuery):
             # broken??
             raise ValueError(f"Unknown scope: {info['relation']}")
 
-        self.provides_scope = info['relation']
-
     def add(self, what):
         raise ValueError(f"You cannot add further query components to a Leaf")
 
     def to_json(self):
+        if self.value is None:
+            raise ValueError(f"Leaf node '{self.field}' does not have a value set")
         js = {self.field: self.value}
         if self.comparitor:
             js['_comp'] = self.comparitor
@@ -217,15 +237,11 @@ class LuxRelationship(LuxQuery):
     def __init__(self, field, parent=None):
         super().__init__(field, parent=parent)
         self.class_name = "Relationship"
-        # Can field exist within current scope?
-        info = self.test_parent_scope()
-        self.test_my_scope(info)
-        self.add_to_parent()
+        self.calculate_scopes()
 
-    def test_my_scope(self, info):
+    def test_my_value(self, info):
         if info['relation'] not in self.config.scopes:
             raise ValueError(f"Cannot create a {self.class_name} called {self.field} as it is a Leaf")
-        self.provides_scope = info['relation']
 
     def add(self, what):
         if self.children:
