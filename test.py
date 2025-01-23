@@ -44,8 +44,11 @@ class TestLuxQL(unittest.TestCase):
         bl = LuxBoolean('AND')
         self.assertRaises(ValueError, bl.to_json)
 
+
+    def test_boolean_parent(self):
         # Test adding to a scope
         api = LuxAPI('item')
+        bl = LuxBoolean('AND')
         api.add(bl)
         self.assertTrue(bl in api.children)
 
@@ -56,6 +59,32 @@ class TestLuxQL(unittest.TestCase):
 
         # Test scope is set properly
         self.assertEqual(bl2.provides_scope, 'item')
+
+    def test_boolean_boolean(self):
+        api = LuxAPI('item')
+        bl = LuxBoolean('AND', parent=api)
+        bl2 = LuxBoolean('OR', parent=bl)
+        self.assertEqual(bl2.provides_scope, 'item')
+
+    def test_boolean_add_bad_rel(self):
+        api = LuxAPI('item')
+        bl = LuxBoolean('AND', parent=api)
+        rel = LuxRelationship('foundedBy')
+        self.assertRaises(ValueError, bl.add, rel)
+
+    def test_add_boolean_bad_rel(self):
+        api = LuxAPI('item')
+        bl = LuxBoolean('AND')
+        rel = LuxRelationship('foundedBy', parent=bl)
+        self.assertRaises(ValueError, api.add, bl)
+
+
+
+    def test_boolean_rel(self):
+        api = LuxAPI('item')
+        bl = LuxBoolean('AND', parent=api)
+        rel = LuxRelationship('carries', parent=bl)
+        self.assertTrue(rel in bl.children)
 
     def test_boolean_no_field(self):
         self.assertRaises(TypeError, LuxBoolean)
@@ -87,13 +116,25 @@ class TestLuxQL(unittest.TestCase):
 
         leaf = LuxLeaf('name', value="okay", complete=True)
 
-
     def test_leaf_no_field(self):
         self.assertRaises(TypeError, LuxLeaf)
 
     def test_leaf_bad_field(self):
         self.assertRaises(ValueError, LuxLeaf, 'fish')
 
+
+    def test_relationship(self):
+        rel = LuxRelationship('carries')
+        self.assertRaises(ValueError, rel.to_json)
+
+    def test_relationship_no_field(self):
+        self.assertRaises(TypeError, LuxRelationship)
+
+    def test_relationship_bad_field(self):
+        self.assertRaises(ValueError, LuxRelationship, 'fish')
+
+    def test_relationship_not_relationship(self):
+        self.assertRaises(ValueError, LuxRelationship, 'name')
 
 
 

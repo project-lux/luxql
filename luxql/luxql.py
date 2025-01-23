@@ -102,17 +102,20 @@ class LuxQuery(LuxScope):
     def add(self, what):
         # Test if we can add
         info = self.test_child_scope(what)
-        what.test_my_value(info)
+        if info is not None:
+            what.test_my_value(info)
         # If above hasn't raised, then add
         super().add(what)
 
     def test_child_scope(self, what):
         # Can I accept what as a child?
         if self.provides_scope in what.possible_parent_scopes:
-            # okay
-            info = self.config.lux_config['terms'][self.provides_scope][what.field]
-            what.set_info(info)
-            return info
+            if isinstance(what, LuxBoolean):
+                return None
+            else:
+                info = self.config.lux_config['terms'][self.provides_scope][what.field]
+                what.set_info(info)
+                return info
         else:
             raise ValueError(f"Cannot add a new {what.class_name} of {what.field} to a scope of {self.provides_scope}")
 
