@@ -19,6 +19,20 @@ class TestLuxQL(unittest.TestCase):
         self.assertTrue('item' in cfg.scopes)
         self.assertTrue('name' in cfg.inverted)
 
+    def test_config_bad_url(self):
+        config = dict(
+            lux_config="https://lux.collections.yale.edu/",
+            booleans = ["AND", "OR", "NOT"],
+            comparitors = [">", "<", ">=", "<=", "==", "!="])
+        self.assertRaises(Exception, LuxConfig, config)
+
+        config = dict(
+            lux_config="https://lux.collections.yale.edu/api/not-okay",
+            booleans = ["AND", "OR", "NOT"],
+            comparitors = [">", "<", ">=", "<=", "==", "!="])
+        self.assertRaises(ValueError, LuxConfig, config)
+
+
     def test_api(self):
         api = LuxAPI('item')
         self.assertTrue(api.provides_scope == 'item')
@@ -38,12 +52,21 @@ class TestLuxQL(unittest.TestCase):
         self.assertTrue(bl in api.children)
         self.assertRaises(ValueError, api.add, LuxBoolean('OR'))
 
+    def test_add_api(self):
+        api = LuxAPI('item')
+        bl = LuxBoolean('AND')
+        self.assertRaises(ValueError, bl.add, api)
+
+    def test_api_json(self):
+        api = LuxAPI('item')
+        leaf = LuxLeaf("name", value="fish", parent=api)
+        js = api.to_json()
+        self.assertEqual(js, {"name": "fish"})
 
     def test_boolean(self):
         # Test basic instantiation
         bl = LuxBoolean('AND')
         self.assertRaises(ValueError, bl.to_json)
-
 
     def test_boolean_parent(self):
         # Test adding to a scope
@@ -72,12 +95,13 @@ class TestLuxQL(unittest.TestCase):
         rel = LuxRelationship('foundedBy')
         self.assertRaises(ValueError, bl.add, rel)
 
+
+    # FAILING
     def test_add_boolean_bad_rel(self):
         api = LuxAPI('item')
         bl = LuxBoolean('AND')
         rel = LuxRelationship('foundedBy', parent=bl)
         self.assertRaises(ValueError, api.add, bl)
-
 
 
     def test_boolean_rel(self):
@@ -92,6 +116,12 @@ class TestLuxQL(unittest.TestCase):
     def test_boolean_bad_field(self):
         self.assertRaises(ValueError, LuxBoolean, 'fish')
 
+    def test_boolean_json(self):
+        api = LuxAPI('item')
+        bl = LuxBoolean("AND", parent=api)
+        leaf = LuxLeaf("name", value="fish", parent=bl)
+        js = api.to_json()
+        self.assertEqual(js, {"AND": [{"name": "fish"}]})
 
     def test_leaf(self):
         leaf = LuxLeaf('name')
@@ -115,6 +145,17 @@ class TestLuxQL(unittest.TestCase):
         leaf = LuxLeaf('name', value="okay", weight=3)
 
         leaf = LuxLeaf('name', value="okay", complete=True)
+
+    # FAILING
+    def test_leaf_bad_option(self):
+        self.assertRaises(ValueError, LuxLeaf, "name", value="okay", options=["fish"])
+
+
+    def test_leaf_date(self):
+        l = LuxLeaf("startDate", value="2000-01-01T00:00:00", comparitor=">")
+
+    def test_leaf_bad_date(self):
+        self.assertRaises(ValueError, LuxLeaf, "startDate", value="fish", comparitor=">")
 
     def test_leaf_no_field(self):
         self.assertRaises(TypeError, LuxLeaf)

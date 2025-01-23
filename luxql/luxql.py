@@ -58,18 +58,10 @@ class LuxAPI(LuxScope):
             raise ValueError("Already have a top level query")
         super().add(what)
 
-    def added_to(self, parent):
-        raise ValueError("Cannot add the API to another part of the query")
-
     def to_json(self):
         if not self.children:
             raise ValueError("No query has been defined")
         return self.children[0].to_json()
-
-    def get(self):
-        """This is where wrappers would make the URL, retrieve it and process"""
-        q = json.dumps(self.to_json())
-        print(q)
 
 
 class LuxQuery(LuxScope):
@@ -101,6 +93,9 @@ class LuxQuery(LuxScope):
 
     def add(self, what):
         # Test if we can add
+        if isinstance(what, LuxAPI):
+            # Nope!
+            raise ValueError(f"Cannot add an API instance into a query")
         info = self.test_child_scope(what)
         if info is not None:
             what.test_my_value(info)
@@ -125,9 +120,6 @@ class LuxQuery(LuxScope):
     def add_to_parent(self):
         if self.parent is not None:
             self.parent.add(self)
-
-    def to_json(self):
-        return {}
 
     def added_to(self, parent):
         pass
