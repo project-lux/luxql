@@ -32,6 +32,13 @@ class LuxConfig(object):
                 except:
                     self.inverted[t] = [scope]
 
+        self.possible_options = {}
+        for k in self.lux_config['options'].values():
+            for o in k['allowed']:
+                self.possible_options[o] = 1
+
+        self.possible_comparitors = config['comparitors']
+
 _cached_lux_config = LuxConfig(config)
 
 
@@ -172,7 +179,12 @@ class LuxLeaf(LuxQuery):
         self.class_name = "Leaf"
         self.value = value
         self.comparitor = comparitor
+        if self.comparitor and self.comparitor not in self.config.possible_comparitors:
+            raise ValueError(f"{self.comparitor} is not a known comparitor")
         self.options = options
+        for o in self.options:
+            if not o in self.config.possible_options:
+                raise ValueError(f"{o} is not a known option")
         self.children = None
         self.weight = weight
         self.complete = complete

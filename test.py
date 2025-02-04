@@ -95,15 +95,12 @@ class TestLuxQL(unittest.TestCase):
         rel = LuxRelationship('foundedBy')
         self.assertRaises(ValueError, bl.add, rel)
 
-
-    # FAILING
     def test_add_boolean_bad_rel(self):
         api = LuxAPI('item')
         bl = LuxBoolean('AND')
         rel = LuxRelationship('foundedBy')
         bl.add(rel)
         self.assertRaises(ValueError, api.add, bl)
-
 
     def test_boolean_rel(self):
         api = LuxAPI('item')
@@ -150,7 +147,6 @@ class TestLuxQL(unittest.TestCase):
     # FAILING
     def test_leaf_bad_option(self):
         self.assertRaises(ValueError, LuxLeaf, "name", value="okay", options=["fish"])
-
 
     def test_leaf_date(self):
         l = LuxLeaf("startDate", value="2000-01-01T00:00:00", comparitor=">")
