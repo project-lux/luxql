@@ -49,13 +49,32 @@ class LuxScope(object):
         self.children.append(what)
         what.added_to(self)
 
+    def test_child_scope(self, what):
+        # Can I accept what as a child?
+        if self.provides_scope in what.possible_parent_scopes:
+            if isinstance(what, LuxBoolean):
+                return None
+            else:
+                info = self.config.lux_config['terms'][self.provides_scope][what.field]
+                what.set_info(info)
+                return info
+        elif not self.provides_scope:
+            # if we don't have a scope, we can't test (e.g. unanchored bool)
+            return None
+        else:
+            raise ValueError(f"Cannot add a new {what.class_name} of {what.field} to a scope of {self.provides_scope}")
+
 
 class LuxAPI(LuxScope):
     """Minimal API instance that downstream applications should inherit"""
 
     def add(self, what):
+        # No parent scope, we're the root of the scope tree
         if self.children:
             raise ValueError("Already have a top level query")
+        info = self.test_child_scope(what)
+        if info is not None:
+            what.test_my_value(info)
         super().add(what)
 
     def to_json(self):
@@ -102,17 +121,7 @@ class LuxQuery(LuxScope):
         # If above hasn't raised, then add
         super().add(what)
 
-    def test_child_scope(self, what):
-        # Can I accept what as a child?
-        if self.provides_scope in what.possible_parent_scopes:
-            if isinstance(what, LuxBoolean):
-                return None
-            else:
-                info = self.config.lux_config['terms'][self.provides_scope][what.field]
-                what.set_info(info)
-                return info
-        else:
-            raise ValueError(f"Cannot add a new {what.class_name} of {what.field} to a scope of {self.provides_scope}")
+
 
     def test_my_value(self, info):
         pass
@@ -148,6 +157,10 @@ class LuxBoolean(LuxQuery):
 
     def added_to(self, parent):
         self.provides_scope = parent.provides_scope
+
+    def add(self, what):
+        super().add(what)
+        self.possible_parent_scopes = what.possible_parent_scopes
 
 
 class LuxLeaf(LuxQuery):

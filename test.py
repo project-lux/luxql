@@ -100,7 +100,8 @@ class TestLuxQL(unittest.TestCase):
     def test_add_boolean_bad_rel(self):
         api = LuxAPI('item')
         bl = LuxBoolean('AND')
-        rel = LuxRelationship('foundedBy', parent=bl)
+        rel = LuxRelationship('foundedBy')
+        bl.add(rel)
         self.assertRaises(ValueError, api.add, bl)
 
 
