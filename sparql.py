@@ -1,22 +1,24 @@
-from luxql import Reader, LuxConfig
-from luxql.reader import SparqlTranslator
+from luxql import JsonReader, LuxConfig
+from luxql.sparql import SparqlTranslator
 
 cfg = LuxConfig()
-r = Reader(cfg)
+r = JsonReader(cfg)
 st = SparqlTranslator(cfg)
 q = r.read(
     {
         "OR": [
             {"text": "squirrel"},
-            {"carries": {"aboutAgent": {"occupation": {"name": "artist", "_options": ["stemmed"]}}}},
+            {"carries": {"aboutAgent": {"startAt": {"name": "amsterdam"}}}},
         ]
     },
     "item",
 )
 
-q = r.read(
-    {"AND": [{"OR": [{"name": "John"}, {"name": "Jane"}]}, {"OR": [{"name": "Trumbull"}, {"name": "West"}]}]}, "agent"
-)
+# q = r.read(
+#    {"AND": [{"OR": [{"name": "John"}, {"name": "Jane"}]}, {"OR": [{"name": "Trumbull"}, {"name": "West"}]}]}, "agent"
+# )
+
+q = r.read({"text": "froissart robinson"}, "work")
 
 spq = st.translate(q)
 print(spq.get_text())

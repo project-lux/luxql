@@ -1,2 +1,2 @@
-from .luxql import LuxAPI, LuxLeaf, LuxBoolean, LuxRelationship, LuxConfig
-from .reader import Reader
+from .luxql import LuxAPI, LuxLeaf, LuxBoolean, LuxRelationship, LuxConfig  # noqa
+from .reader import JsonReader  # noqa
