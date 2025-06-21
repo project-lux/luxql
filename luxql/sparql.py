@@ -1,5 +1,6 @@
 from . import LuxLeaf, LuxBoolean, LuxRelationship
 from SPARQLBurger.SPARQLQueryBuilder import *
+from SPARQLBurger.SPARQLQueryBuilder import OrderBy
 
 Pattern = SPARQLGraphPattern
 
@@ -39,19 +40,26 @@ class SparqlTranslator:
     def translate(self, query, scope=None):
         # Implement translation logic here
         self.counter = 0
-        sparql = SPARQLSelectQuery(distinct=True, limit=25)
+        ob = OrderBy(["?score"], True)
+
+        sparql = SPARQLSelectQuery(distinct=True, limit=25, offset=0)
         for pfx, uri in self.prefixes.items():
             sparql.add_prefix(prefix=Prefix(pfx, uri))
-
         sparql.add_variables(variables=["?uri"])
-        where = Pattern()
 
+        where = Pattern()
         if scope is not None and scope != "any":
             t = Triple("?uri", "a", f"lux:{scope.Title()}")
             where.add_triples([t])
 
         query.var = f"?uri"
         self.translate_query(query, where)
+        bs = []
+        for x in range(self.counter):
+            bs.append(f"COALESCE(?score{x}, 0)")
+        where.add_binding(Binding(" + ".join(bs), "?score"))
+
+        sparql.add_order_by(ob)
         sparql.set_where_pattern(graph_pattern=where)
         return sparql
 
@@ -117,17 +125,11 @@ class SparqlTranslator:
                 value = " ".join(words)
                 field = f"lux:{scope}Name"
                 patt = Pattern()
-                fvar = f"?ftxt{self.counter}"
-                wvar = f"?wtxt{self.counter}"
-                trips = [
-                    Triple(query.var, field, fvar),
-                    Triple(wvar, "ql:contains-word", f'"{value}"'),
-                    Triple(wvar, "ql:contains-entity", fvar),
-                ]
+                trips = self.make_sparql_word(query.var, field, 0, value, 0)
                 patt.add_triples(trips)
                 word_scores = []
                 for word in words:
-                    word_scores.append(f"(?ql_score_word_{wvar[1:]}_{word} *2)")
+                    word_scores.append(f"(?ql_score_word_txt0{self.counter}0_{word} *2)")
                 patt.add_binding(Binding(" + ".join(word_scores), f"?score{self.counter}"))
                 parent.add_nested_graph_pattern(patt)
 
@@ -145,7 +147,7 @@ class SparqlTranslator:
                     p1.add_nested_graph_pattern(opt2)
                     p1.add_binding(
                         Binding(
-                            f"?score_refs_{self.counter}{wx} + ?score_text_{self.counter}{wx}",
+                            f"COALESCE(?score_refs_{self.counter}{wx}, 0) + COALESCE(?score_text_{self.counter}{wx}, 0)",
                             f"?score_{self.counter}{wx}",
                         )
                     )
@@ -158,7 +160,7 @@ class SparqlTranslator:
                     p2.add_nested_graph_pattern(opt1)
                     p2.add_binding(
                         Binding(
-                            f"?score_refs_{self.counter}{wx} + ?score_text_{self.counter}{wx}",
+                            f"COALESCE(?score_refs_{self.counter}{wx}, 0) + COALESCE(?score_text_{self.counter}{wx}, 0)",
                             f"?score_{self.counter}{wx}",
                         )
                     )
@@ -179,6 +181,7 @@ class SparqlTranslator:
         else:
             # Unknown
             raise ValueError(f"Unknown provides_scope: {typ}")
+        self.counter += 1
 
     def make_sparql_word(self, var, pred, n, w, wx):
         fvar = f"?field{n}{self.counter}{wx}"
@@ -194,7 +197,6 @@ class SparqlTranslator:
         opt1 = Pattern(optional=optional)
         trips = self.make_sparql_word(query.var, f"lux:{scope}Any/lux:primaryName", n, w, wx)
         opt1.add_triples(trips)
-        opt1.add_binding(Binding("0", f"?score_text_{self.counter}{wx}"))
         opt1.add_binding(
             Binding(f"?ql_score_word_txt{n}{self.counter}{wx}_{w} * 6", f"?score_refs_{self.counter}{wx}")
         )
@@ -211,7 +213,6 @@ class SparqlTranslator:
         trips = [Triple(wvar, "ql:contains-word", f'"{w}"'), Triple(wvar, "ql:contains-entity", nvar)]
         opt1n.add_triples(trips)
         opt12.add_nested_graph_pattern(opt1n)
-        opt12.add_binding(Binding("0", f"?score_refs_{self.counter}{wx}"))
         opt12.add_binding(
             Binding(
                 f"?ql_score_word_txt{n}{self.counter}{wx}_{w} + (?ql_score_word_namet{self.counter}{wx}_{w} *4)",

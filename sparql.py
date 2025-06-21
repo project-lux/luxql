@@ -14,11 +14,11 @@ q = r.read(
     "item",
 )
 
-# q = r.read(
-#    {"AND": [{"OR": [{"name": "John"}, {"name": "Jane"}]}, {"OR": [{"name": "Trumbull"}, {"name": "West"}]}]}, "agent"
-# )
+q = r.read(
+    {"AND": [{"OR": [{"name": "John"}, {"name": "Jane"}]}, {"OR": [{"name": "Trumbull"}, {"name": "West"}]}]}, "agent"
+)
 
-q = r.read({"text": "froissart robinson"}, "work")
+# q = r.read({"text": "froissart robinson"}, "work")
 
 spq = st.translate(q)
 print(spq.get_text())
