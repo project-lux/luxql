@@ -19,9 +19,9 @@ class SparqlTranslator:
         self.prefixes = {
             "rdf": "http://www.w3.org/1999/02/22-rdf-syntax-ns#",
             "xsd": "http://www.w3.org/2001/XMLSchema#",
-            "dc": "http://purl.org/dc/elements/1.1/",
-            "dct": "http://purl.org/dc/terms/",
-            "rdfs": "http://www.w3.org/2000/01/rdf-schema#",
+            # "dc": "http://purl.org/dc/elements/1.1/",
+            # "dct": "http://purl.org/dc/terms/",
+            # "rdfs": "http://www.w3.org/2000/01/rdf-schema#",
             "la": "https://linked.art/ns/terms/",
             "lux": "https://lux.collections.yale.edu/ns/",
         }
@@ -145,7 +145,7 @@ class SparqlTranslator:
                 "containsWork": "^partOfWork",
             },
         }
-
+        # Property Path Notation:
         # ^elt is inverse path (e.g. from object to subject)
         # elt* is zero or more
         # elt+ is one or more
