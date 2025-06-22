@@ -1,6 +1,12 @@
 from . import LuxLeaf, LuxBoolean, LuxRelationship
 from SPARQLBurger.SPARQLQueryBuilder import *
-from SPARQLBurger.SPARQLQueryBuilder import OrderBy
+
+try:
+    from SPARQLBurger.SPARQLQueryBuilder import OrderBy
+except:
+    print("You need a version of SPARQLBurger with OrderBy and offset")
+
+from SPARQLBurger.SPARQLQueryBuilder import GroupBy
 
 Pattern = SPARQLGraphPattern
 
@@ -9,6 +15,7 @@ class SparqlTranslator:
     def __init__(self, config):
         self.config = config
         self.counter = 0
+        self.scored = []
         self.prefixes = {
             "rdf": "http://www.w3.org/1999/02/22-rdf-syntax-ns#",
             "xsd": "http://www.w3.org/2001/XMLSchema#",
@@ -19,33 +26,141 @@ class SparqlTranslator:
             "lux": "https://lux.collections.yale.edu/ns/",
         }
 
+        self.scope_fields = {
+            "agent": {
+                "startAt": "placeOfAgentBeginning",
+                "endAt": "placeOfAgentEnding",
+                "foundedBy": "agentOfAgentBeginning",
+                "gender": "gender",
+                "occupation": "occupation",
+                "nationality": "nationality",
+                "professionalActivity": "typeOfAgentActivity",
+                "activeAt": "placeOfAgentActivity",
+                "createdSet": "^agentOfSetBeginning",
+                "produced": "^agentOfItemBeginning",
+                "created": "^agentOfWorkBeginning",
+                "carriedOut": "^eventCarriedOutBy",
+                "curated": "^setCuratedBy",
+                "encountered": "^agentOfItemEncounter",
+                "founded": "^agentOfAgentBeginning",
+                "memberOfInverse": "^agentMemberOfGroup",
+                "influencedProduction": "^agentInfluenceOfItemBeginning",
+                "influencedCreation": "^agentInfluenceOfWorkBeginning",
+                "publishedSet": "^agentOfSetPublication",
+                "published": "^agentOfWorkPublication",
+                "subjectOfSet": "^setAboutAgent",
+                "subjectOfWork": "^workAboutAgent",
+            },
+            "item": {
+                "producedAt": "placeOfItemBeginning",
+                "producedBy": "agentOfItemBeginning",
+                "producedUsing": "typeOfItemBeginning",
+                "productionInfluencedBy": "agentInfluenceOfItemBeginning",
+                "encounteredAt": "placeOfItemEncounter",
+                "encounteredBy": "agentOfItemEncounter",
+                "carries": "carries",
+                "material": "material",
+                "subjectOfSet": "^setAboutItem",
+                "subjectOfWork": "^workAboutItem",
+            },
+            "concept": {
+                "broader": "broader",
+                "classificationOfSet": "^setClassification",
+                "classificationOfConcept": "^conceptClassification",
+                "classificationOfEvent": "^eventClassification",
+                "classificationOfItem": "^itemClassification",
+                "classificationOfAgent": "^agentClassification",
+                "classificationOfPlace": "^placeClassification",
+                "classificationOfWork": "^workClassification",
+                "genderOf": "^gender",
+                "languageOf": "^workLanguage",
+                "languageOfSet": "^setLanguage",
+                "materialOfItem": "^material",
+                "narrower": "^broader",
+                "nationalityOf": "^nationality",
+                "occupationOf": "^occupation",
+                "professionalActivityOf": "^typeOfAgentActivity",
+                "subjectOfSet": "^setAboutConcept",
+                "subjectOfWork": "^workAboutConcept",
+                "usedToProduce": "^typeOfItemBeginning",
+            },
+            "event": {
+                "carriedOutBy": "agentOfEvent",
+                "tookPlaceAt": "placeOfEvent",
+                "used": "eventUsedSet",
+                "causeOfEvent": "causeOfEvent",
+                "causedCreationOf": "^causeOfWorkBeginning",
+                "subjectOfSet": "^setAboutEvent",
+                "subjectOfWork": "^workAboutEvent",
+            },
+            "place": {
+                "partOf": "placePartOf",
+                "activePlaceOfAgent": "^placeOfAgentActivity",
+                "startPlaceOfAgent": "^placeOfAgentBeginning",
+                "producedHere": "^placeOfItemBeginning",
+                "createdHere": "^placeOfWorkBeginning",
+                "endPlaceOfAgent": "^placeOfAgentEnding",
+                "encounteredHere": "^placeOfItemEncounter",
+                "placeOfEvent": "^placeOfEvent",
+                "setPublishedHere": "^placeOfSetPublication",
+                "publishedHere": "^placeOfWorkPublication",
+                "subjectOfSet": "^setAboutPlace",
+                "subjectOfWork": "^workAboutPlace",
+            },
+            "set": {
+                "aboutConcept": "setAboutConcept",
+                "aboutEvent": "setAboutEvent",
+                "aboutItem": "setAboutItem",
+                "aboutAgent": "setAboutAgent",
+                "aboutPlace": "setAboutPlace",
+                "aboutWork": "setAboutWork",
+                "createdAt": "placeOfSetBeginning",
+                "createdBy": "agentOfSetBeginning",
+                "creationCausedBy": "causeOfSetBeginning",
+                "curatedBy": "setCuratedBy",
+                "publishedAt": "placeOfSetPublication",
+                "publishedBy": "agentOfSetPublication",
+                "containingSet": "^setMemberOfSet",
+                "containingItem": "^itemMemberOfSet",
+                "usedForEvent": "^eventUsedSet",
+            },
+            "work": {
+                "aboutConcept": "workAboutConcept",
+                "aboutEvent": "workAboutEvent",
+                "aboutItem": "workAboutItem",
+                "aboutAgent": "workAboutAgent",
+                "aboutPlace": "workAboutPlace",
+                "aboutWork": "workAboutWork",
+                "createdAt": "placeOfWorkBeginning",
+                "createdBy": "agentOfWorkBeginning",
+                "creationCausedBy": "causeOfWorkBeginning",
+                "creationInfluencedBy": "agentInfluenceOfWorkBeginning",
+                "publishedAt": "placeOfWorkPublication",
+                "publishedBy": "agentOfWorkPublication",
+                "language": "workLanguage",
+                "partOfWork": "workPartOf",
+                "subjectOfSet": "^setAboutWork",
+                "subjectOfWork": "^workAboutWork",
+                "carriedBy": "^carries",
+                "containsWork": "^partOfWork",
+            },
+        }
+
         # ^elt is inverse path (e.g. from object to subject)
         # elt* is zero or more
         # elt+ is one or more
         # elt? is zero or one
 
-    def make_sparql_or(self, operands):
-        x = 0
-        parent = Pattern()
-        for child in operands:
-            if x == 0:
-                clause = Pattern()
-            else:
-                clause = Pattern(union=True)
-            x += 1
-            clause.add_triples(triples=[child])
-            parent.add_nested_graph_pattern(clause)
-        return parent
-
-    def translate(self, query, scope=None):
+    def translate_search(self, query, scope=None, limit=25, offset=0):
         # Implement translation logic here
         self.counter = 0
+        self.scored = []
         ob = OrderBy(["?score"], True)
 
-        sparql = SPARQLSelectQuery(distinct=True, limit=25, offset=0)
+        sparql = SPARQLSelectQuery(distinct=True, limit=limit, offset=offset)
         for pfx, uri in self.prefixes.items():
-            sparql.add_prefix(prefix=Prefix(pfx, uri))
-        sparql.add_variables(variables=["?uri"])
+            sparql.add_prefix(Prefix(pfx, uri))
+        sparql.add_variables(["?uri"])
 
         where = Pattern()
         if scope is not None and scope != "any":
@@ -55,12 +170,42 @@ class SparqlTranslator:
         query.var = f"?uri"
         self.translate_query(query, where)
         bs = []
-        for x in range(self.counter):
+        for x in self.scored:
             bs.append(f"COALESCE(?score{x}, 0)")
         where.add_binding(Binding(" + ".join(bs), "?score"))
 
         sparql.add_order_by(ob)
-        sparql.set_where_pattern(graph_pattern=where)
+        sparql.set_where_pattern(where)
+        return sparql
+
+    def translate_facet(self, query, facet, scope=None, limit=25, offset=0):
+        self.counter = 0
+        gb = GroupBy(["?facet"])
+        ob = OrderBy(["?facetCount"], True)
+
+        sparql = SPARQLSelectQuery(limit=limit, offset=offset)
+        for pfx, uri in self.prefixes.items():
+            sparql.add_prefix(prefix=Prefix(pfx, uri))
+        sparql.add_variables(["?facet", "(COUNT(?facet) AS ?facetCount)"])
+
+        inner = SPARQLSelectQuery(distinct=True)
+
+        where = Pattern()
+        if scope is not None and scope != "any":
+            t = Triple("?uri", "a", f"lux:{scope.Title()}")
+            where.add_triples([t])
+
+        query.var = "?uri"
+        self.translate_query(query, where)
+        inner.set_where_pattern(inner)
+
+        outer = Pattern()
+        outer.add_nested_select_query(inner)
+        outer.add_triples([Triple("?uri", facet, "?facet")])
+
+        sparql.add_group_by(gb)
+        sparql.add_order_by(ob)
+        sparql.set_where_pattern(outer)
         return sparql
 
     def translate_query(self, query, where):
@@ -102,10 +247,21 @@ class SparqlTranslator:
         # FILTER NOT EXISTS { ...} ?
         pass
 
+    def get_predicate(self, rel, scope):
+        # only relationships
+        if rel in ["classification", "memberOf"]:
+            return f"lux:{scope}{rel.title()}"
+        else:
+            p = self.scope_fields[scope].get(rel, "missed")
+            if p[0] == "^":
+                return f"^lux:{p[1:]}"
+            else:
+                return f"lux:{p}"
+
     def translate_relationship(self, query, parent):
         query.children[0].var = f"?var{self.counter}"
         self.counter += 1
-        pred = f"lux:{query.field}"
+        pred = self.get_predicate(query.field, query.parent.provides_scope)
         parent.add_triples([Triple(query.var, pred, query.children[0].var)])
         self.translate_query(query.children[0], parent)
 
@@ -132,6 +288,7 @@ class SparqlTranslator:
                     word_scores.append(f"(?ql_score_word_txt0{self.counter}0_{word} *2)")
                 patt.add_binding(Binding(" + ".join(word_scores), f"?score{self.counter}"))
                 parent.add_nested_graph_pattern(patt)
+                self.scored.append(self.counter)
 
             elif query.field == "text":
                 # If a phrase then filter() the result
@@ -169,6 +326,12 @@ class SparqlTranslator:
                     wx += 1
 
                 parent.add_nested_graph_pattern(top)
+                binds = []
+                for x in range(wx):
+                    binds.append(f"COALESCE(?score_{self.counter}{x}, 0)")
+                parent.add_binding(Binding(" + ".join(binds), f"?score_{self.counter}"))
+                self.scored.append(self.counter)
+
             elif query.field == "identifier":
                 pass
 
