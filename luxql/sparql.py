@@ -261,8 +261,13 @@ class SparqlTranslator:
         query.children[0].var = f"?var{self.counter}"
         self.counter += 1
         pred = self.get_predicate(query.field, query.parent.provides_scope)
-        parent.add_triples([Triple(query.var, pred, query.children[0].var)])
-        self.translate_query(query.children[0], parent)
+        # test if only leaf is id:<uri>
+        lf = query.children[0]
+        if type(lf) is LuxLeaf and lf.field == "id":
+            parent.add_triples([Triple(query.var, pred, f"<{lf.value}>")])
+        else:
+            parent.add_triples([Triple(query.var, pred, query.children[0].var)])
+            self.translate_query(query.children[0], parent)
 
     def translate_leaf(self, query, parent):
         typ = query.provides_scope  # text / date / number etc.
@@ -330,6 +335,11 @@ class SparqlTranslator:
                     binds.append(f"COALESCE(?score_{self.counter}{x}, 0)")
                 parent.add_binding(Binding(" + ".join(binds), f"?score_{self.counter}"))
                 self.scored.append(self.counter)
+
+            elif query.field == "id":
+                # VALUES query.var { <..>}
+                v = Values(query.var, [f"<{query.value}>"])
+                parent.add_values(v)
 
             elif query.field == "identifier":
                 pass

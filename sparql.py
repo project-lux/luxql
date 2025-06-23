@@ -4,21 +4,31 @@ from luxql.sparql import SparqlTranslator
 from SPARQLWrapper import SPARQLWrapper, JSON
 
 cfg = LuxConfig()
-r = JsonReader(cfg)
+rdr = JsonReader(cfg)
 st = SparqlTranslator(cfg)
-q = r.read(
+q = rdr.read(
     {
         "AND": [
             {"classification": {"name": "painting"}},
-            {"carries": {"aboutAgent": {"encountered": {"classification": {"name": "fossil"}}}}},
+            {
+                "carries": {
+                    "aboutAgent": {
+                        "encountered": {
+                            "classification": {
+                                "id": "https://lux.collections.yale.edu/data/concept/05a41429-8a18-4911-854e-eae804b7d46f"
+                            }
+                        }
+                    }
+                }
+            },
         ]
     },
     "item",
 )
 
-q = r.read(
-    {"AND": [{"aboutItem": {"producedBy": {"name": "turner"}}}, {"createdBy": {"name": "tate britain"}}]}, "work"
-)
+# q = rdr.read(
+#    {"AND": [{"aboutItem": {"producedBy": {"name": "turner"}}}, {"createdBy": {"name": "tate britain"}}]}, "work"
+# )
 
 
 # q = r.read(
@@ -29,12 +39,10 @@ q = r.read(
 
 spq = st.translate_search(q)
 # spq = st.translate_facet(q, "lux:workLanguage")
-q = spq.get_text()
-
-
+qt = spq.get_text()
 endpoint = SPARQLWrapper("http://localhost:7010")
 endpoint.setReturnFormat(JSON)
-endpoint.setQuery(q)
+endpoint.setQuery(qt)
 try:
     ret = endpoint.queryAndConvert()
     for r in ret["results"]["bindings"]:
