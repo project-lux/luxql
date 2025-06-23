@@ -42,7 +42,7 @@ class LuxConfig(object):
             for t in terms.keys():
                 try:
                     self.inverted[t].append(scope)
-                except:
+                except Exception:
                     self.inverted[t] = [scope]
 
         self.possible_options = {}
@@ -61,7 +61,7 @@ class LuxScope(object):
 
     def __init__(self, scope):
         self.config = _cached_lux_config
-        if scope and not scope in self.config.scopes:
+        if scope and scope not in self.config.scopes:
             raise ValueError(f"Unknown scope {scope}; valid scopes are {', '.join(self.config.scopes)}")
         self.provides_scope = scope
         self.children = []
@@ -138,7 +138,7 @@ class LuxQuery(LuxScope):
         # Test if we can add
         if isinstance(what, LuxAPI):
             # Nope!
-            raise ValueError(f"Cannot add an API instance into a query")
+            raise ValueError("Cannot add an API instance into a query")
         info = self.test_child_scope(what)
         if info is not None:
             what.test_my_value(info)
@@ -165,7 +165,7 @@ class LuxBoolean(LuxQuery):
     def __init__(self, field, parent=None):
         super().__init__(field, parent=parent)
         self.class_name = "Boolean"
-        if not field in self.config.module_config["booleans"]:
+        if field not in self.config.module_config["booleans"]:
             raise ValueError(
                 f"Tried to construct unknown boolean {field}; known: {self.config.module_config['booleans']}"
             )

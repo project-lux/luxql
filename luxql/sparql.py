@@ -3,12 +3,12 @@ from SPARQLBurger.SPARQLQueryBuilder import *
 
 try:
     from SPARQLBurger.SPARQLQueryBuilder import OrderBy
-except:
+except Exception:
     print("You need a version of SPARQLBurger with OrderBy and offset")
 
 from SPARQLBurger.SPARQLQueryBuilder import GroupBy
 
-Pattern = SPARQLGraphPattern
+Pattern = SPARQLGraphPattern  # noqa
 
 
 class SparqlTranslator:
@@ -164,7 +164,7 @@ class SparqlTranslator:
 
         where = Pattern()
         if scope is not None and scope != "any":
-            t = Triple("?uri", "a", f"lux:{scope.Title()}")
+            t = Triple("?uri", "a", f"lux:{scope.title()}")
             where.add_triples([t])
 
         query.var = f"?uri"
@@ -189,15 +189,14 @@ class SparqlTranslator:
         sparql.add_variables(["?facet", "(COUNT(?facet) AS ?facetCount)"])
 
         inner = SPARQLSelectQuery(distinct=True)
-
+        inner.add_variables(["?uri"])
         where = Pattern()
         if scope is not None and scope != "any":
             t = Triple("?uri", "a", f"lux:{scope.Title()}")
             where.add_triples([t])
-
         query.var = "?uri"
         self.translate_query(query, where)
-        inner.set_where_pattern(inner)
+        inner.set_where_pattern(where)
 
         outer = Pattern()
         outer.add_nested_select_query(inner)
