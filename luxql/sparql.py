@@ -262,8 +262,11 @@ class SparqlTranslator:
 
     def get_predicate(self, rel, scope):
         # only relationships
-        if rel in ["classification", "memberOf"]:
-            return f"lux:{scope}{rel.title()}"
+        if rel == "classification":
+            return f"lux:{scope}{rel[0].upper()}{rel[1:]}"
+        elif rel == "memberOf":
+            typ = "Group" if scope == "agent" else "Set"
+            return f"lux:{scope}{rel[0].upper()}{rel[1:]}{typ}"
         else:
             p = self.scope_fields[scope].get(rel, "missed")
             if p[0] == "^":
@@ -389,7 +392,6 @@ class SparqlTranslator:
             field = query.field
             # botb, eote
             preds = self.get_leaf_predicate(field, scope)
-            print(preds)
             qvar = query.var
             bvar = f"?date1{self.counter}"
             evar = f"?date2{self.counter}"
