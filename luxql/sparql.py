@@ -26,6 +26,20 @@ class SparqlTranslator:
             "lux": "https://lux.collections.yale.edu/ns/",
         }
 
+        self.anywhere_field = "text"
+        self.id_field = "id"
+        self.name_field = "name"
+
+        self.scope_leaf_fields = {
+            "agent": {},
+            "concept": {},
+            "event": {},
+            "place": {},
+            "set": {},
+            "work": {},
+            "item": {},
+        }
+
         self.scope_fields = {
             "agent": {
                 "startAt": "placeOfAgentBeginning",
@@ -155,7 +169,6 @@ class SparqlTranslator:
         # Implement translation logic here
         self.counter = 0
         self.scored = []
-        ob = OrderBy(["?score"], True)
 
         sparql = SPARQLSelectQuery(distinct=True, limit=limit, offset=offset)
         for pfx, uri in self.prefixes.items():
@@ -172,9 +185,10 @@ class SparqlTranslator:
         bs = []
         for x in self.scored:
             bs.append(f"COALESCE(?score{x}, 0)")
-        where.add_binding(Binding(" + ".join(bs), "?score"))
-
-        sparql.add_order_by(ob)
+        if bs:
+            where.add_binding(Binding(" + ".join(bs), "?score"))
+            ob = OrderBy(["?score"], True)
+            sparql.add_order_by(ob)
         sparql.set_where_pattern(where)
         return sparql
 
@@ -269,6 +283,24 @@ class SparqlTranslator:
             parent.add_triples([Triple(query.var, pred, query.children[0].var)])
             self.translate_query(query.children[0], parent)
 
+    def get_leaf_predicate(self, field, scope):
+        if field in ["height", "width", "depth", "weight", "dimension"]:
+            return f"lux:{field}"
+
+        if field in ["startDate", "producedDate", "createdDate"]:
+            return [f"lux:startOf{scope.title()}Beginning", f"lux:endOf{scope.title()}Beginning"]
+        elif field == "endDate":
+            return [f"lux:startOf{scope.title()}Ending", f"lux:endOf{scope.title()}Ending"]
+        elif field == "activeDate":
+            return [f"lux:startOf{scope.title()}Activity", f"lux:endOf{scope.title()}Activity"]
+        elif field == "publishedDate":
+            return [f"lux:startOf{scope.title()}Publication", f"lux:endOf{scope.title()}Publication"]
+        elif field == "encounteredDate":
+            return [f"lux:startOf{scope.title()}Encounter", f"lux:endOf{scope.title()}Encounter"]
+
+        pred = self.scope_leaf_fields[scope].get(field, "missed")
+        return pred
+
     def translate_leaf(self, query, parent):
         typ = query.provides_scope  # text / date / number etc.
         scope = query.parent.provides_scope  # item/work/etc
@@ -281,7 +313,7 @@ class SparqlTranslator:
             # prefix = word*
             # phrase = search for words and then FILTER()
 
-            if query.field == "name":
+            if query.field == self.name_field:
                 value = " ".join(words)
                 field = f"lux:{scope}Name"
                 patt = Pattern()
@@ -294,7 +326,7 @@ class SparqlTranslator:
                 parent.add_nested_graph_pattern(patt)
                 self.scored.append(self.counter)
 
-            elif query.field == "text":
+            elif query.field == self.anywhere_field:
                 # If a phrase then filter() the result
 
                 top = Pattern()
@@ -336,20 +368,51 @@ class SparqlTranslator:
                 parent.add_binding(Binding(" + ".join(binds), f"?score_{self.counter}"))
                 self.scored.append(self.counter)
 
-            elif query.field == "id":
-                # VALUES query.var { <..>}
-                v = Values(query.var, [f"<{query.value}>"])
-                parent.add_values(v)
+            elif query.field == self.id_field:
+                v = Values([f"<{query.value}>"], query.var)
+                parent.add_value(v)
 
             elif query.field == "identifier":
-                pass
+                # do exact match on the string
+                pred = f"lux:{scope}Identifier"
+                parent.add_triples([Triple(query.var, pred, f'"{query.value}"')])
+            elif query.field == "recordType":
+                parent.add_triples([Triple(query.var, "a", f"lux:{query.value}")])
 
         elif typ == "date":
             # do date query per qlever
-            pass
+            dt = query.value
+            comp = query.comparitor
+            field = query.field
+            # botb, eote
+            preds = self.get_leaf_predicate(field, scope)
+            qvar = query.var
+            bvar = f"?date1{self.counter}"
+            evar = f"?date2{self.counter}"
+
+            # This is insufficient -- it needs to turn the query into a range, and then compare
+            #
+            p = Pattern()
+            trips = [Triple(qvar, pred[0], bvar), Triple(qvar, pred[1], evar)]
+            p.add_triples(trips)
+            p.add_filter(Filter(f'{dtvar} {comp} "{dt}"^^xsd:dateTime'))
+            parent.add_nested_graph_pattern(p)
+
         elif typ == "float":
             # do number query per qlever
-            pass
+            dt = query.value
+            comp = query.comparitor
+            field = query.field
+            pred = self.get_leaf_predicate(field, scope)
+            qvar = query.var
+            fvar = f"?float{self.counter}"
+
+            p = Pattern()
+            trips = [Triple(qvar, pred, fvar)]
+            p.add_triples(trips)
+            p.add_filter(Filter(f'{fvar} {comp} "{dt}"^^xsd:float'))
+            parent.add_nested_graph_pattern(p)
+
         else:
             # Unknown
             raise ValueError(f"Unknown provides_scope: {typ}")

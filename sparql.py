@@ -31,11 +31,27 @@ q = rdr.read(
 # )
 
 
-# q = r.read(
+# q = rdr.read(
 #    {"AND": [{"OR": [{"name": "John"}, {"name": "Jane"}]}, {"OR": [{"name": "Trumbull"}, {"name": "West"}]}]}, "agent"
 # )
 
-# q = r.read({"text": "froissart robinson"}, "work")
+# q = rdr.read({"text": "froissart robinson"}, "work")
+
+q = rdr.read(
+    {
+        "AND": [
+            {"startDate": "1850-01-01T00:00:00.000Z", "_comp": ">="},
+            {"startDate": "1900-01-01T00:00:00.000Z", "_comp": "<="},
+        ]
+    },
+    "agent",
+)
+
+q = rdr.read({"height": "100", "_comp": ">="}, "item")
+
+
+q = rdr.read({"recordType": "HumanMadeObject"}, "item")
+
 
 spq = st.translate_search(q)
 # spq = st.translate_facet(q, "lux:workLanguage")
