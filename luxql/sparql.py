@@ -298,6 +298,9 @@ class SparqlTranslator:
         elif field == "encounteredDate":
             return [f"lux:startOf{scope.title()}Encounter", f"lux:endOf{scope.title()}Encounter"]
 
+        if field == "hasDigitalImage":
+            return f"lux:{scope}{field[0].upper()}{field[1:]}"
+
         pred = self.scope_leaf_fields[scope].get(field, "missed")
         return pred
 
@@ -386,6 +389,7 @@ class SparqlTranslator:
             field = query.field
             # botb, eote
             preds = self.get_leaf_predicate(field, scope)
+            print(preds)
             qvar = query.var
             bvar = f"?date1{self.counter}"
             evar = f"?date2{self.counter}"
@@ -393,9 +397,9 @@ class SparqlTranslator:
             # This is insufficient -- it needs to turn the query into a range, and then compare
             #
             p = Pattern()
-            trips = [Triple(qvar, pred[0], bvar), Triple(qvar, pred[1], evar)]
+            trips = [Triple(qvar, preds[0], bvar), Triple(qvar, preds[1], evar)]
             p.add_triples(trips)
-            p.add_filter(Filter(f'{dtvar} {comp} "{dt}"^^xsd:dateTime'))
+            p.add_filter(Filter(f'{bvar} {comp} "{dt}"^^xsd:dateTime'))
             parent.add_nested_graph_pattern(p)
 
         elif typ == "float":
@@ -411,6 +415,17 @@ class SparqlTranslator:
             trips = [Triple(qvar, pred, fvar)]
             p.add_triples(trips)
             p.add_filter(Filter(f'{fvar} {comp} "{dt}"^^xsd:float'))
+            parent.add_nested_graph_pattern(p)
+
+        elif typ == "boolean":
+            dt = query.value
+            field = query.field
+            pred = self.get_leaf_predicate(field, scope)
+            qvar = query.var
+
+            p = Pattern()
+            trips = [Triple(qvar, pred, f'"{dt}"^^xsd:decimal')]
+            p.add_triples(trips)
             parent.add_nested_graph_pattern(p)
 
         else:

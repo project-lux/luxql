@@ -52,6 +52,8 @@ q = rdr.read({"height": "100", "_comp": ">="}, "item")
 
 q = rdr.read({"recordType": "HumanMadeObject"}, "item")
 
+q = rdr.read({"AND": [{"hasDigitalImage": 1}]}, "item")
+
 
 spq = st.translate_search(q)
 # spq = st.translate_facet(q, "lux:workLanguage")
