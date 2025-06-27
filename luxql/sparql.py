@@ -170,14 +170,19 @@ class SparqlTranslator:
         # elt+ is one or more
         # elt? is zero or one
 
-    def translate_search(self, query, scope=None, limit=25, offset=0):
+    def translate_search(self, query, scope=None, limit=25, offset=0, sort="", order="", sortDefault="ZZZZZZZZZZ"):
         # Implement translation logic here
         self.counter = 0
         self.scored = []
+        self.calculate_scores = False
         sparql = SPARQLSelectQuery(limit=limit, offset=offset)
         for pfx, uri in self.prefixes.items():
             sparql.add_prefix(Prefix(pfx, uri))
-        sparql.add_variables(["?uri", "(SUM(?score) AS ?sscore)"])
+        if sort and sort != "relevance":
+            sparql.add_variables(["?uri", "(MIN(?sortWithDefault) AS ?sort)"])
+        else:
+            sparql.add_variables(["?uri", "(SUM(?score) AS ?sscore)"])
+            self.calculate_scores = True
 
         where = Pattern()
         if scope is not None and scope != "any":
@@ -186,15 +191,48 @@ class SparqlTranslator:
 
         query.var = f"?uri"
         self.translate_query(query, where)
-        bs = []
-        for x in self.scored:
-            bs.append(f"COALESCE(?score_{x}, 0)")
-        if bs:
-            where.add_binding(Binding(" + ".join(bs), "?score"))
-            gby = GroupBy(["?uri"])
-            sparql.add_group_by(gby)
-            ob = OrderBy(["?sscore"], True)
+
+        gby = GroupBy(["?uri"])
+        sparql.add_group_by(gby)
+
+        if sort == "relevance":
+            bs = []
+            for x in self.scored:
+                bs.append(f"COALESCE(?score_{x}, 0)")
+            if bs:
+                where.add_binding(Binding(" + ".join(bs), "?score"))
+                ob = OrderBy(["?sscore"], True)
+                sparql.add_order_by(ob)
+        elif sort:
+            spatt = Pattern(optional=True)
+            spatt.add_triples([Triple("?uri", sort, "?sortValue")])
+            if "SortName" in sort:
+                spatt.add_filter(Filter("!isNumeric(?sortValue)"))
+            where.add_nested_graph_pattern(spatt)
+            where.add_binding(Binding(f'COALESCE(?sortValue, "{sortDefault}")', "?sortWithDefault"))
+            ob = OrderBy(["?sort"], order == "DESC")
             sparql.add_order_by(ob)
+
+        sparql.set_where_pattern(where)
+        return sparql
+
+    def translate_search_count(self, query, scope=None):
+        # Implement translation logic here
+        self.counter = 0
+        self.scored = []
+        self.calculate_scores = False
+        sparql = SPARQLSelectQuery()
+        for pfx, uri in self.prefixes.items():
+            sparql.add_prefix(Prefix(pfx, uri))
+        sparql.add_variables(["(COUNT(DISTINCT ?uri) AS ?count)"])
+
+        where = Pattern()
+        if scope is not None and scope != "any":
+            t = Triple("?uri", "a", f"lux:{scope.title()}")
+            where.add_triples([t])
+
+        query.var = f"?uri"
+        self.translate_query(query, where)
         sparql.set_where_pattern(where)
         return sparql
 
@@ -371,10 +409,11 @@ class SparqlTranslator:
                 patt = Pattern()
                 trips = self.make_sparql_word(query.var, field, 0, value, 0)
                 patt.add_triples(trips)
-                word_scores = []
-                for word in words:
-                    word_scores.append(f"(?ql_score_word_txt0{self.counter}0_{word} *2)")
-                patt.add_binding(Binding(" + ".join(word_scores), f"?score{self.counter}"))
+                if self.calculate_scores:
+                    word_scores = []
+                    for word in words:
+                        word_scores.append(f"(?ql_score_word_txt0{self.counter}0_{word} *2)")
+                    patt.add_binding(Binding(" + ".join(word_scores), f"?score{self.counter}"))
                 if phrases:
                     fvar = f"?field0{self.counter}0"
                     for p in phrases:
@@ -403,12 +442,13 @@ class SparqlTranslator:
                     p1.add_nested_graph_pattern(opt1)
                     opt2 = self.make_sparql_anywhere(query, scope, 2, w, wx, True)
                     p1.add_nested_graph_pattern(opt2)
-                    p1.add_binding(
-                        Binding(
-                            f"COALESCE(?score_refs_{self.counter}{wx}, 0) + COALESCE(?score_text_{self.counter}{wx}, 0)",
-                            f"?score_{self.counter}{wx}",
+                    if self.calculate_scores:
+                        p1.add_binding(
+                            Binding(
+                                f"COALESCE(?score_refs_{self.counter}{wx}, 0) + COALESCE(?score_text_{self.counter}{wx}, 0)",
+                                f"?score_{self.counter}{wx}",
+                            )
                         )
-                    )
                     wpatt.add_nested_graph_pattern(p1)
 
                     p2 = Pattern(union=True)
@@ -416,21 +456,24 @@ class SparqlTranslator:
                     p2.add_nested_graph_pattern(opt2)
                     opt1 = self.make_sparql_ref(query, scope, 1, w, wx, True)
                     p2.add_nested_graph_pattern(opt1)
-                    p2.add_binding(
-                        Binding(
-                            f"COALESCE(?score_refs_{self.counter}{wx}, 0) + COALESCE(?score_text_{self.counter}{wx}, 0)",
-                            f"?score_{self.counter}{wx}",
+
+                    if self.calculate_scores:
+                        p2.add_binding(
+                            Binding(
+                                f"COALESCE(?score_refs_{self.counter}{wx}, 0) + COALESCE(?score_text_{self.counter}{wx}, 0)",
+                                f"?score_{self.counter}{wx}",
+                            )
                         )
-                    )
                     wpatt.add_nested_graph_pattern(p2)
                     top.add_nested_graph_pattern(wpatt)
                     wx += 1
 
                 parent.add_nested_graph_pattern(top)
-                binds = []
-                for x in range(wx):
-                    binds.append(f"COALESCE(?score_{self.counter}{x}, 0)")
-                parent.add_binding(Binding(" + ".join(binds), f"?score_{self.counter}"))
+                if self.calculate_scores:
+                    binds = []
+                    for x in range(wx):
+                        binds.append(f"COALESCE(?score_{self.counter}{x}, 0)")
+                    parent.add_binding(Binding(" + ".join(binds), f"?score_{self.counter}"))
                 self.scored.append(self.counter)
 
             elif query.field == self.id_field:
@@ -508,12 +551,13 @@ class SparqlTranslator:
         opt1 = Pattern(optional=optional)
         trips = self.make_sparql_word(query.var, f"lux:{scope}Any/lux:primaryName", n, w, wx)
         opt1.add_triples(trips)
-        opt1.add_binding(
-            Binding(
-                f"?ql_score_word_txt{n}{self.counter}{wx}_{w} * {self.reference_name_weight}",
-                f"?score_refs_{self.counter}{wx}",
+        if self.calculate_scores:
+            opt1.add_binding(
+                Binding(
+                    f"?ql_score_word_txt{n}{self.counter}{wx}_{w} * {self.reference_name_weight}",
+                    f"?score_refs_{self.counter}{wx}",
+                )
             )
-        )
         return opt1
 
     def make_sparql_anywhere(self, query, scope, n, w, wx, optional):
@@ -527,10 +571,11 @@ class SparqlTranslator:
         trips = [Triple(wvar, "ql:contains-word", f'"{w}"'), Triple(wvar, "ql:contains-entity", nvar)]
         opt1n.add_triples(trips)
         opt12.add_nested_graph_pattern(opt1n)
-        opt12.add_binding(
-            Binding(
-                f"?ql_score_word_txt{n}{self.counter}{wx}_{w} * {self.record_text_weight} + (?ql_score_word_namet{self.counter}{wx}_{w} * {self.record_name_weight})",
-                f"?score_text_{self.counter}{wx}",
+        if self.calculate_scores:
+            opt12.add_binding(
+                Binding(
+                    f"?ql_score_word_txt{n}{self.counter}{wx}_{w} * {self.record_text_weight} + (?ql_score_word_namet{self.counter}{wx}_{w} * {self.record_name_weight})",
+                    f"?score_text_{self.counter}{wx}",
+                )
             )
-        )
         return opt12
