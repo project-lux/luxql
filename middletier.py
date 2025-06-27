@@ -9,7 +9,6 @@ import json
 import uvicorn
 import os
 import copy
-import time
 
 import psycopg2
 from psycopg2.extras import RealDictCursor, Json
@@ -349,7 +348,7 @@ sorts = {
 }
 
 
-def fetch_sparql(spq):
+async def fetch_sparql(spq):
     if type(spq) is str:
         q = spq
     else:
@@ -394,17 +393,15 @@ async def do_search(scope, q={}, page=1, pageLength=20, sort=""):
         ascdesc = "DESC"
     pred = sorts[scope].get(sort, "relevance")
 
-    # print(f"SORT: {pred}, {ascdesc}")
-
     jq = json.loads(q)
     parsed = rdr.read(jq, scope)
     spq = st.translate_search(parsed, limit=pageLength, offset=offset, sort=pred, order=ascdesc)
     qt = spq.get_text()
-    res = fetch_sparql(qt)
+    res = await fetch_sparql(qt)
 
     spq2 = st.translate_search_count(parsed)
     qt2 = spq2.get_text()
-    ttl_res = fetch_sparql(qt2)
+    ttl_res = await fetch_sparql(qt2)
     ttl = ttl_res[0]["count"]["value"]
 
     js = {
@@ -451,7 +448,7 @@ async def do_search_estimate(scope, q={}, page=1):
         return JSONResponse(content=js)
     spq2 = st.translate_search_count(parsed)
     qt2 = spq2.get_text()
-    ttl_res = fetch_sparql(qt2)
+    ttl_res = await fetch_sparql(qt2)
     ttl = ttl_res[0]["count"]["value"]
     js["totalItems"] = int(ttl)
     return JSONResponse(content=js)
@@ -465,7 +462,7 @@ async def do_search_match(q={}):
     parsed = rdr.read(jq, scope)
     spq2 = st.translate_search_count(parsed)
     qt2 = spq2.get_text()
-    ttl_res = fetch_sparql(qt2)
+    ttl_res = await fetch_sparql(qt2)
     ttl = ttl_res[0]["count"]["value"]
     js = {
         "unnamed": {
@@ -478,8 +475,6 @@ async def do_search_match(q={}):
 
 @app.get("/api/facets/{scope}")
 async def do_facet(scope, q={}, name="", page=1):
-    print("FACET REQUEST")
-    time.sleep(5)
     jq = json.loads(q)
     parsed = rdr.read(jq, scope)
 
@@ -514,8 +509,9 @@ async def do_facet(scope, q={}, name="", page=1):
     if ":" not in pred and pred != "a":
         pred = f"lux:{pred}"
     spq = st.translate_facet(parsed, pred)
-    res = fetch_sparql(spq)
-    print(f"FACET: {name} / {pred}: {len(res)}")
+    print(f"FACET: {name} / {pred} about to run...")
+    res = await fetch_sparql(spq)
+    print(f"FACET: {name} returned {len(res)}")
 
     # fq = LuxBoolean("AND")
     # fq.provides_scope = scope
@@ -604,7 +600,7 @@ SELECT DISTINCT ?what ?prep ?prep2 (COUNT(?objwk) AS ?ct) WHERE {{
     }}
 }} GROUP BY ?what ?prep ?prep2 ORDER BY ?what
     """
-    res = fetch_sparql(qry)
+    res = await fetch_sparql(qry)
     cts = {}
 
     for row in res:
@@ -622,7 +618,6 @@ SELECT DISTINCT ?what ?prep ?prep2 (COUNT(?objwk) AS ?ct) WHERE {{
         e["name"] = f"{prep} -> {prep2}"
         js["orderedItems"].append(e)
 
-    print(cts)
     js["orderedItems"].sort(key=lambda x: cts[x["value"]], reverse=True)
 
     return JSONResponse(content=js)
@@ -658,7 +653,7 @@ async def do_get_record(scope, identifier, profile=None):
         if profile is None:
             # Calculate _links here
             sqry = f"SELECT DISTINCT ?pred WHERE {{ ?what ?pred <https://lux.collections.yale.edu/data/{scope}/{identifier}> . }}"
-            res = fetch_sparql(sqry)
+            res = await fetch_sparql(sqry)
             for r in res:
                 pred = r["pred"]["value"].rsplit("/", 1)[-1]
                 print(f"profile: {profile} / {pred}")
@@ -696,7 +691,7 @@ async def do_get_record(scope, identifier, profile=None):
 async def do_stats():
     """Fetch counts of each class"""
     spq = "SELECT ?class (COUNT(?class) as ?count) {?what a ?class}  GROUP  BY  ?class"
-    res = fetch_sparql(spq)
+    res = await fetch_sparql(spq)
     vals = {}
     for r in res:
         vals[r["class"]["value"].rsplit("/")[-1].lower()] = int(r["count"]["value"])

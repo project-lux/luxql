@@ -395,8 +395,6 @@ class SparqlTranslator:
                 raise
             phrases = [w for w in shwords if " " in w]
             words = val.replace('"', "").split()
-            print(phrases)
-            print(words)
 
             # Test if we should make them prefixes or phrases
             # prefix = word*
