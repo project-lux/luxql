@@ -1,6 +1,8 @@
 from . import LuxLeaf, LuxBoolean, LuxRelationship
 from SPARQLBurger.SPARQLQueryBuilder import *
 
+import shlex
+
 try:
     from SPARQLBurger.SPARQLQueryBuilder import OrderBy
 except Exception:
@@ -29,6 +31,9 @@ class SparqlTranslator:
         self.anywhere_field = "text"
         self.id_field = "id"
         self.name_field = "name"
+        self.record_name_weight = 10
+        self.record_text_weight = 3
+        self.reference_name_weight = 1
 
         self.scope_leaf_fields = {
             "agent": {},
@@ -169,6 +174,34 @@ class SparqlTranslator:
         # Implement translation logic here
         self.counter = 0
         self.scored = []
+        sparql = SPARQLSelectQuery(limit=limit, offset=offset)
+        for pfx, uri in self.prefixes.items():
+            sparql.add_prefix(Prefix(pfx, uri))
+        sparql.add_variables(["?uri", "(SUM(?score) AS ?sscore)"])
+
+        where = Pattern()
+        if scope is not None and scope != "any":
+            t = Triple("?uri", "a", f"lux:{scope.title()}")
+            where.add_triples([t])
+
+        query.var = f"?uri"
+        self.translate_query(query, where)
+        bs = []
+        for x in self.scored:
+            bs.append(f"COALESCE(?score_{x}, 0)")
+        if bs:
+            where.add_binding(Binding(" + ".join(bs), "?score"))
+            gby = GroupBy(["?uri"])
+            sparql.add_group_by(gby)
+            ob = OrderBy(["?sscore"], True)
+            sparql.add_order_by(ob)
+        sparql.set_where_pattern(where)
+        return sparql
+
+    def translate_search_distinct(self, query, scope=None, limit=25, offset=0):
+        # Implement translation logic here
+        self.counter = 0
+        self.scored = []
 
         sparql = SPARQLSelectQuery(distinct=True, limit=limit, offset=offset)
         for pfx, uri in self.prefixes.items():
@@ -184,7 +217,7 @@ class SparqlTranslator:
         self.translate_query(query, where)
         bs = []
         for x in self.scored:
-            bs.append(f"COALESCE(?score{x}, 0)")
+            bs.append(f"COALESCE(?score_{x}, 0)")
         if bs:
             where.add_binding(Binding(" + ".join(bs), "?score"))
             ob = OrderBy(["?score"], True)
@@ -303,6 +336,8 @@ class SparqlTranslator:
 
         if field == "hasDigitalImage":
             return f"lux:{scope}{field[0].upper()}{field[1:]}"
+        elif field == f"{scope}HasDigitalImage":
+            return f"lux:{field}"
 
         pred = self.scope_leaf_fields[scope].get(field, "missed")
         return pred
@@ -313,11 +348,22 @@ class SparqlTranslator:
 
         if typ == "text":
             # extract words
-            words = query.value.lower().split()
+
+            # extract quoted phrases first
+            val = query.value.lower()
+            try:
+                shwords = shlex.split(val)
+            except:
+                raise
+            phrases = [w for w in shwords if " " in w]
+            words = val.replace('"', "").split()
+            print(phrases)
+            print(words)
 
             # Test if we should make them prefixes or phrases
             # prefix = word*
             # phrase = search for words and then FILTER()
+            # Filter(f'CONTAINS({full-text-var}, "{phrase here}")')
 
             if query.field == self.name_field:
                 value = " ".join(words)
@@ -329,6 +375,11 @@ class SparqlTranslator:
                 for word in words:
                     word_scores.append(f"(?ql_score_word_txt0{self.counter}0_{word} *2)")
                 patt.add_binding(Binding(" + ".join(word_scores), f"?score{self.counter}"))
+                if phrases:
+                    fvar = f"?field0{self.counter}0"
+                    for p in phrases:
+                        patt.add_filter(Filter(f'CONTAINS(LCASE({fvar}), "{p.lower()}")'))
+
                 parent.add_nested_graph_pattern(patt)
                 self.scored.append(self.counter)
 
@@ -337,6 +388,14 @@ class SparqlTranslator:
 
                 top = Pattern()
                 wx = 0
+
+                val = query.value.lower()
+                try:
+                    words = shlex.split(val)
+                except:
+                    raise
+                phrases = [w for w in words if " " in w]
+
                 for w in words:
                     wpatt = Pattern()
                     p1 = Pattern()
@@ -450,7 +509,10 @@ class SparqlTranslator:
         trips = self.make_sparql_word(query.var, f"lux:{scope}Any/lux:primaryName", n, w, wx)
         opt1.add_triples(trips)
         opt1.add_binding(
-            Binding(f"?ql_score_word_txt{n}{self.counter}{wx}_{w} * 6", f"?score_refs_{self.counter}{wx}")
+            Binding(
+                f"?ql_score_word_txt{n}{self.counter}{wx}_{w} * {self.reference_name_weight}",
+                f"?score_refs_{self.counter}{wx}",
+            )
         )
         return opt1
 
@@ -467,7 +529,7 @@ class SparqlTranslator:
         opt12.add_nested_graph_pattern(opt1n)
         opt12.add_binding(
             Binding(
-                f"?ql_score_word_txt{n}{self.counter}{wx}_{w} + (?ql_score_word_namet{self.counter}{wx}_{w} *4)",
+                f"?ql_score_word_txt{n}{self.counter}{wx}_{w} * {self.record_text_weight} + (?ql_score_word_namet{self.counter}{wx}_{w} * {self.record_name_weight})",
                 f"?score_text_{self.counter}{wx}",
             )
         )

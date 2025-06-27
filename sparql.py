@@ -48,11 +48,9 @@ q = rdr.read(
 )
 
 q = rdr.read({"height": "100", "_comp": ">="}, "item")
-
-
 q = rdr.read({"recordType": "HumanMadeObject"}, "item")
-
 q = rdr.read({"AND": [{"hasDigitalImage": 1}]}, "item")
+q = rdr.read({"text": "andy warhol"}, "agent")
 
 
 spq = st.translate_search(q)
