@@ -200,6 +200,10 @@ class SparqlTranslator:
             for x in self.scored:
                 bs.append(f"COALESCE(?score_{x}, 0)")
             if bs:
+                # ?uri lux:recordText ?rectxt .
+                # BIND (COALESCE(?score_0, 0) / STRLEN(?rectxt) AS ?score)
+                # where.add_triples(Triple("?uri", "lux:recordText", "?rectxt"))
+                # This ranks archive components too highly
                 where.add_binding(Binding(" + ".join(bs), "?score"))
                 ob = OrderBy(["?sscore"], True)
                 sparql.add_order_by(ob)

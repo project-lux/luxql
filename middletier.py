@@ -18,6 +18,18 @@ from middletier_config import hal_link_templates, hal_queries, sparql_hal_querie
 from middletier_config import sorts, facets
 from middletier_config import related_list_names, related_list_queries, related_list_sparql
 
+### To do
+#
+# * run the multi scope set queries (sparql in comments below)
+# * figure out how to create the related list per-entry queries
+# * Add a "no" option for hasDigitalImage
+# * fix "quoted string" again
+# * Implement NOT
+# * Parser for simple search with (AND OR NOT)
+# * do isPublicDomain and isOnline (in data, plus code)
+#
+
+
 conn = psycopg2.connect(user="rs2668", dbname="rs2668")
 table = "merged_data_cache"
 
@@ -239,12 +251,19 @@ async def do_facet(scope, q={}, name="", page=1):
 
         if r["facet"]["type"] == "uri":
             clause = {pname2: {"id": r["facet"]["value"]}}
-            val = (
-                r["facet"]["value"]
-                .replace("https://lux.collections.yale.edu/data/", "http://localhost:5001/data/")
-                .replace("https://lux.collections.yale.edu/ns/", "")
-                .replace("https://linked.art/ns/terms/", "")
-            )
+            if pred == "a":
+                val = r["facet"]["value"]
+                if val.startswith("https://lux.collections"):
+                    continue
+                else:
+                    val = val.replace("https://linked.art/ns/terms/", "")
+            else:
+                val = (
+                    r["facet"]["value"]
+                    .replace("https://lux.collections.yale.edu/data/", "http://localhost:5001/data/")
+                    .replace("https://lux.collections.yale.edu/ns/", "")
+                    .replace("https://linked.art/ns/terms/", "")
+                )
 
         elif r["facet"]["datatype"].endswith("int") or r["facet"]["datatype"].endswith("decimal"):
             val = int(r["facet"]["value"])
