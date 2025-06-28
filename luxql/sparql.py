@@ -236,31 +236,26 @@ class SparqlTranslator:
         sparql.set_where_pattern(where)
         return sparql
 
-    def translate_search_distinct(self, query, scope=None, limit=25, offset=0):
-        # Implement translation logic here
+    def translate_search_related(self, query, scope=None):
         self.counter = 0
         self.scored = []
-
-        sparql = SPARQLSelectQuery(distinct=True, limit=limit, offset=offset)
+        self.calculate_scores = False
+        sparql = SPARQLSelectQuery(limit=100)
         for pfx, uri in self.prefixes.items():
             sparql.add_prefix(Prefix(pfx, uri))
-        sparql.add_variables(["?uri"])
+        sparql.add_variables(["?uri", "(COUNT(?uri) AS ?count)"])
 
         where = Pattern()
-        if scope is not None and scope != "any":
-            t = Triple("?uri", "a", f"lux:{scope.title()}")
-            where.add_triples([t])
-
         query.var = f"?uri"
         self.translate_query(query, where)
-        bs = []
-        for x in self.scored:
-            bs.append(f"COALESCE(?score_{x}, 0)")
-        if bs:
-            where.add_binding(Binding(" + ".join(bs), "?score"))
-            ob = OrderBy(["?score"], True)
-            sparql.add_order_by(ob)
+        where.add_filter(Filter("?uri != <URI-HERE>"))
+
         sparql.set_where_pattern(where)
+        gby = GroupBy(["?uri"])
+        sparql.add_group_by(gby)
+        ob = OrderBy(["?count"], True)
+        sparql.add_order_by(ob)
+
         return sparql
 
     def translate_facet(self, query, facet, scope=None, limit=25, offset=0):
@@ -290,6 +285,52 @@ class SparqlTranslator:
         sparql.add_group_by(gb)
         sparql.add_order_by(ob)
         sparql.set_where_pattern(outer)
+        return sparql
+
+    def translate_facet_count(self, query, facet):
+        """
+        PREFIX lux: <https://lux.collections.yale.edu/ns/>
+        SELECT (COUNT(?facet) AS ?count) WHERE {
+          {
+            SELECT ?facet WHERE {
+              {
+                SELECT DISTINCT ?uri WHERE {
+                  ?uri lux:placeOfItemBeginning <https://lux.collections.yale.edu/data/place/02cff2e2-4285-4f82-bc5a-8d3b33596c9c> .
+                }
+              }
+              ?uri lux:itemClassification ?facet .
+            }
+            GROUP BY ?facet
+          }
+        }
+        """
+        self.counter = 0
+
+        sparql = SPARQLSelectQuery()
+        for pfx, uri in self.prefixes.items():
+            sparql.add_prefix(prefix=Prefix(pfx, uri))
+        sparql.add_variables(["(COUNT(?facet) AS ?count)"])
+
+        inner = SPARQLSelectQuery()
+        gb = GroupBy(["?facet"])
+        inner.add_variables(["?facet"])
+
+        inner2 = SPARQLSelectQuery(distinct=True)
+        inner2.add_variables(["?uri"])
+        where = Pattern()
+        query.var = "?uri"
+        self.translate_query(query, where)
+        inner2.set_where_pattern(where)
+
+        outer = Pattern()
+        outer.add_nested_select_query(inner2)
+        outer.add_triples([Triple("?uri", facet, "?facet")])
+        inner.add_group_by(gb)
+        inner.set_where_pattern(outer)
+
+        swhere = Pattern()
+        swhere.add_nested_select_query(inner)
+        sparql.set_where_pattern(swhere)
         return sparql
 
     def translate_query(self, query, where):

@@ -9,6 +9,8 @@ import json
 import uvicorn
 import os
 import copy
+import aiohttp
+import urllib
 
 import psycopg2
 from psycopg2.extras import RealDictCursor, Json
@@ -140,6 +142,9 @@ for q in qs:
 
 hal_queries = {
     "agent": {
+        "lux:agentRelatedAgents": "lux:agentRelatedAgents",
+        "lux:agentRelatedConcepts": "lux:agentRelatedConcepts",
+        "lux:agentRelatedPlaces": "lux:agentRelatedPlaces",
         "lux:agentAgentMemberOf": queries["agentsMemberOfGroup"],
         "lux:agentCreatedPublishedInfluencedWork": queries["worksCreatedPublishedInfluencedByAgent"],
         "lux:agentEventsCarriedOut": queries["eventsCarriedOutByAgent"],
@@ -149,11 +154,8 @@ hal_queries = {
         "lux:agentItemEncounteredTime": queries["itemsEncounteredByAgent"],
         "lux:agentItemMadeTime": queries["itemsProducedByAgent"],
         "lux:agentMadeDiscoveredInfluencedItem": queries["itemsProducedEncounteredInfluencedByAgent"],
-        # "lux:agentRelatedAgents": queries["agentsRelatedToAgent"],
-        # "lux:agentRelatedConcepts": queries["conceptsRelatedToAgent"],
-        # "lux:agentRelatedItemTypes": queries["itemsProducedByAgent"],
-        # "lux:agentRelatedMaterials": queries["itemsProducedByAgent"],
-        # "lux:agentRelatedPlaces": queries["placesRelatedToAgent"],
+        "lux:agentRelatedItemTypes": queries["itemsProducedByAgent"],
+        "lux:agentRelatedMaterials": queries["itemsProducedByAgent"],
         "lux:agentRelatedSubjects": queries["worksCreatedByAgent"],
         "lux:agentRelatedWorkTypes": queries["worksCreatedByAgent"],
         "lux:agentWorkAbout": queries["worksAboutAgent"],
@@ -162,15 +164,15 @@ hal_queries = {
         "lux:departmentItems": queries["itemsForDepartment"],
     },
     "concept": {
+        "lux:conceptRelatedAgents": "lux:conceptRelatedAgents",
+        "lux:conceptRelatedConcepts": "lux:conceptRelatedConcepts",
+        "lux:conceptRelatedPlaces": "lux:conceptRelatedPlaces",
         "lux:conceptChildren": queries["childrenOfConcept"],
         "lux:conceptInfluencedConcepts": queries["conceptsInfluencedByConcept"],
         "lux:conceptItemEncounteredTime": queries["itemsOfTypeOrMaterial"],
         "lux:conceptItemMadeTime": queries["itemsOfTypeOrMaterial"],
         "lux:conceptItemTypes": queries["itemsOfTypeOrMaterial"],
-        # "lux:conceptRelatedAgents": queries["agentsRelatedToConcept"],
-        # "lux:conceptRelatedConcepts": queries["conceptsRelatedToConcept"],
         "lux:conceptRelatedItems": queries["itemsOfTypeOrMaterial"],
-        # "lux:conceptRelatedPlaces": queries["placesRelatedToConcept"],
         "lux:conceptRelatedWorks": queries["worksRelatedToConcept"],
         "lux:conceptWorkCreatedTime": queries["worksRelatedToConcept"],
         "lux:conceptWorkPublishedTime": queries["worksRelatedToConcept"],
@@ -183,14 +185,14 @@ hal_queries = {
         "lux:typeForPlace": queries["placesClassifiedAs"],
     },
     "event": {
+        "lux:eventRelatedAgents": "lux:eventRelatedAgents",
+        "lux:eventRelatedConcepts": "lux:eventRelatedConcepts",
+        "lux:eventRelatedPlaces": "lux:eventRelatedPlaces",
         "lux:eventConceptsInfluencedBy": queries["conceptsSubjectsForPeriod"],
         "lux:eventIncludedItems": queries["itemsForEvent"],
         "lux:eventItemMaterials": queries["itemsForEvent"],
         "lux:eventObjectTypesUsed": queries["itemsForEvent"],
         "lux:eventObjectTypesAbout": queries["itemsAboutEvent"],
-        # "lux:eventRelatedAgents": queries["agentsRelatedToEvent"],
-        # "lux:eventRelatedConcepts": queries["conceptsRelatedToEvent"],
-        # "lux:eventRelatedPlaces": queries["placesRelatedToEvent"],
         "lux:eventWorksAbout": queries["worksAboutEvent"],
         "lux:eventWorkTypesUsed": queries["worksForEvent"],
         "lux:eventWorkTypesAbout": queries["worksAboutEvent"],
@@ -204,6 +206,9 @@ hal_queries = {
         "lux:itemWorksAbout": queries["worksAboutItem"],
     },
     "place": {
+        "lux:placeRelatedAgents": "lux:placeRelatedAgents",
+        "lux:placeRelatedConcepts": "lux:placeRelatedConcepts",
+        "lux:placeRelatedPlaces": "lux:placeRelatedPlaces",
         "lux:placeActiveAgent": queries["agentsActiveAtPlace"],
         "lux:placeBornAgent": queries["agentsBornAtPlace"],
         "lux:placeCreatedWork": queries["worksCreatedAtPlace"],
@@ -216,9 +221,6 @@ hal_queries = {
         "lux:placeMadeDiscoveredItem": queries["itemsProducedEncounteredAtPlace"],
         "lux:placeParts": queries["partsOfPlace"],
         "lux:placePublishedWork": queries["worksPublishedAtPlace"],
-        # "lux:placeRelatedAgents": queries["agentsRelatedToPlace"],
-        # "lux:placeRelatedConcepts": queries["conceptsRelatedToPlace"],
-        # "lux:placeRelatedPlaces": queries["placesRelatedToPlace"],
         "lux:placeWorkAbout": queries["worksAboutPlace"],
         "lux:placeWorkTypes": queries["worksRelatedToPlace"],
     },
@@ -243,32 +245,118 @@ hal_queries = {
     },
 }
 
-sparql_hal_queries = {}
-sparql_hal_singles = {}
+searchUriHost = "http://localhost:5001"
+hal_link_templates = {
+    "lux:agentAgentMemberOf": f"{searchUriHost}/api/search/agent?q=<<$q>>",
+    "lux:agentCreatedPublishedInfluencedWork": f"{searchUriHost}/api/search/work?q=<<$q>>",
+    "lux:agentEventsCarriedOut": f"{searchUriHost}/api/search/event?q=<<$q>>&sort=eventStartDate:asc",
+    "lux:agentEventsUsingProducedObjects": f"{searchUriHost}/api/search/event?q=<<$q>>&sort=eventStartDate:asc",
+    "lux:agentFoundedByAgent": f"{searchUriHost}/api/search/agent?q=<<$q>>&sort=anySortName:asc",
+    "lux:agentInfluencedConcepts": f"{searchUriHost}/api/search/concept?q=<<$q>>",
+    "lux:agentItemEncounteredTime": f"{searchUriHost}/api/facets/item?q=<<$q>>&name=itemEncounteredDate",
+    "lux:agentItemMadeTime": f"{searchUriHost}/api/facets/item?q=<<$q>>&name=itemProductionDate",
+    "lux:agentMadeDiscoveredInfluencedItem": f"{searchUriHost}/api/search/item?q=<<$q>>",
+    "lux:agentRelatedAgents": f"{searchUriHost}/api/related-list/agent?&name=relatedToAgent&uri=<<$id>>",
+    "lux:agentRelatedConcepts": f"{searchUriHost}/api/related-list/concept?&name=relatedToAgent&uri=<<$id>>",
+    "lux:agentRelatedItemTypes": f"{searchUriHost}/api/facets/item?q=<<$q>>&name=itemTypeId",
+    "lux:agentRelatedMaterials": f"{searchUriHost}/api/facets/item?q=<<$q>>&name=itemMaterialId",
+    "lux:agentRelatedPlaces": f"{searchUriHost}/api/related-list/place?&name=relatedToAgent&uri=<<$id>>",
+    "lux:agentRelatedSubjects": f"{searchUriHost}/api/facets/work?q=<<$q>>&name=workAboutConceptId",
+    "lux:agentRelatedWorkTypes": f"{searchUriHost}/api/facets/work?q=<<$q>>&name=workTypeId",
+    "lux:agentWorkAbout": f"{searchUriHost}/api/search/work?q=<<$q>>",
+    "lux:agentWorkCreatedTime": f"{searchUriHost}/api/facets/work?q=<<$q>>&name=workCreationDate",
+    "lux:agentWorkPublishedTime": f"{searchUriHost}/api/facets/work?q=<<$q>>&name=workPublicationDate",
+    "lux:conceptChildren": f"{searchUriHost}/api/search/concept?q=<<$q>>",
+    "lux:conceptInfluencedConcepts": f"{searchUriHost}/api/search/concept?q=<<$q>>",
+    "lux:conceptItemEncounteredTime": f"{searchUriHost}/api/facets/item?q=<<$q>>&name=itemEncounteredDate",
+    "lux:conceptItemMadeTime": f"{searchUriHost}/api/facets/item?q=<<$q>>&name=itemProductionDate",
+    "lux:conceptItemTypes": f"{searchUriHost}/api/facets/item?q=<<$q>>&name=itemTypeId",
+    "lux:conceptRelatedAgents": f"{searchUriHost}/api/related-list/agent?&name=relatedToConcept&uri=<<$id>>",
+    "lux:conceptRelatedConcepts": f"{searchUriHost}/api/related-list/concept?&name=relatedToConcept&uri=<<$id>>",
+    "lux:conceptRelatedItems": f"{searchUriHost}/api/search/item?q=<<$q>>",
+    "lux:conceptRelatedPlaces": f"{searchUriHost}/api/related-list/place?name=relatedToConcept&uri=<<$id>>",
+    "lux:conceptRelatedWorks": f"{searchUriHost}/api/search/work?q=<<$q>>",
+    "lux:conceptWorkCreatedTime": f"{searchUriHost}/api/facets/work?q=<<$q>>&name=workCreationDate",
+    "lux:conceptWorkPublishedTime": f"{searchUriHost}/api/facets/work?q=<<$q>>&name=workPublicationDate",
+    "lux:conceptWorkTypes": f"{searchUriHost}/api/facets/work?q=<<$q>>&name=workTypeId",
+    "lux:departmentItems": f"{searchUriHost}/api/search/item?q=<<$q>>",
+    "lux:eventCausedWorks": f"{searchUriHost}/api/search/work?q=<<$q>>",
+    "lux:eventConceptsInfluencedBy": f"{searchUriHost}/api/search/concept?q=<<$q>>",
+    "lux:eventIncludedItems": f"{searchUriHost}/api/search/item?q=<<$q>>",
+    "lux:eventItemMaterials": f"{searchUriHost}/api/facets/item?q=<<$q>>&name=itemMaterialId",
+    "lux:eventObjectTypesUsed": f"{searchUriHost}/api/facets/item?q=<<$q>>&name=itemTypeId",
+    "lux:eventObjectTypesAbout": f"{searchUriHost}/api/facets/item?q=<<$q>>&name=itemTypeId",
+    "lux:eventRelatedAgents": f"{searchUriHost}/api/related-list/agent?name=relatedToEvent&uri=<<$id>>",
+    "lux:eventRelatedConcepts": f"{searchUriHost}/api/related-list/concept?name=relatedToEvent&uri=<<$id>>",
+    "lux:eventRelatedPlaces": f"{searchUriHost}/api/related-list/place?name=relatedToEvent&uri=<<$id>>",
+    "lux:eventWorksAbout": f"{searchUriHost}/api/search/work?q=<<$q>>",
+    "lux:eventWorkTypesUsed": f"{searchUriHost}/api/facets/work?q=<<$q>>&name=workTypeId",
+    "lux:eventWorkTypesAbout": f"{searchUriHost}/api/facets/work?q=<<$q>>&name=workTypeId",
+    "lux:genderForAgent": f"{searchUriHost}/api/search/agent?q=<<$q>>",
+    "lux:itemArchive": f"{searchUriHost}/api/search/set?q=<<$q>>",
+    "lux:itemEvents": f"{searchUriHost}/api/search/event?q=<<$q>>&sort=eventStartDate:asc",
+    "lux:itemDepartment": f"{searchUriHost}/api/search/agent?q=<<$q>>",
+    "lux:itemUnit": f"{searchUriHost}/api/facets/item?q=<<$q>>&name=responsibleUnits",
+    "lux:itemWorksAbout": f"{searchUriHost}/api/search/work?q=<<$q>>",
+    "lux:nationalityForAgent": f"{searchUriHost}/api/search/agent?q=<<$q>>",
+    "lux:occupationForAgent": f"{searchUriHost}/api/search/agent?q=<<$q>>",
+    "lux:placeActiveAgent": f"{searchUriHost}/api/search/agent?q=<<$q>>",
+    "lux:placeBornAgent": f"{searchUriHost}/api/search/agent?q=<<$q>>",
+    "lux:placeCreatedWork": f"{searchUriHost}/api/search/work?q=<<$q>>",
+    "lux:placeDepictedAgentsFromRelatedWorks": f"{searchUriHost}/api/facets/work?q=<<$q>>&name=workAboutAgentId",
+    "lux:placeDepictingWork": f"{searchUriHost}/api/facets/work?q=<<$q>>&name=workAboutConceptId",
+    "lux:placeDiedAgent": f"{searchUriHost}/api/search/agent?q=<<$q>>",
+    "lux:placeEvents": f"{searchUriHost}/api/search/event?q=<<$q>>",
+    "lux:placeInfluencedConcepts": f"{searchUriHost}/api/search/concept?q=<<$q>>",
+    "lux:placeItemTypes": f"{searchUriHost}/api/facets/item?q=<<$q>>&name=itemTypeId",
+    "lux:placeMadeDiscoveredItem": f"{searchUriHost}/api/search/item?q=<<$q>>",
+    "lux:placeParts": f"{searchUriHost}/api/search/place?q=<<$q>>",
+    "lux:placePublishedWork": f"{searchUriHost}/api/search/work?q=<<$q>>",
+    "lux:placeRelatedAgents": f"{searchUriHost}/api/related-list/agent?name=relatedToPlace&uri=<<$id>>",
+    "lux:placeRelatedConcepts": f"{searchUriHost}/api/related-list/concept?name=relatedToPlace&uri=<<$id>>",
+    "lux:placeRelatedPlaces": f"{searchUriHost}/api/related-list/place?name=relatedToPlace&uri=<<$id>>",
+    "lux:placeWorkAbout": f"{searchUriHost}/api/search/work?q=<<$q>>",
+    "lux:placeWorkTypes": f"{searchUriHost}/api/facets/work?q=<<$q>>&name=workTypeId",
+    "lux:setDepartment": f"{searchUriHost}/api/search/agent?q=<<$q>>",
+    "lux:setEvents": f"{searchUriHost}/api/search/event?q=<<$q>>",
+    "lux:setIncludedItems": f"{searchUriHost}/api/search/item?q=<<$q>>&sort=itemArchiveSortId:asc",
+    "lux:setIncludedWorks": f"{searchUriHost}/api/search/work?q=<<$q>>&sort=workArchiveSortId:asc",
+    "lux:setItemEncounteredTime": f"{searchUriHost}/api/facets/item?q=<<$q>>&name=itemEncounteredDate",
+    "lux:setItemMadeTime": f"{searchUriHost}/api/facets/item?q=<<$q>>&name=itemProductionDate",
+    "lux:setItemTypes": f"{searchUriHost}/api/facets/item?q=<<$q>>&name=itemTypeId",
+    "lux:setUnit": f"{searchUriHost}/api/facets/work?q=<<$q>>&name=responsibleUnits",
+    "lux:setItemsWithImages": f"{searchUriHost}/api/search/item?q=<<$q>>",
+    "lux:typeForAgent": f"{searchUriHost}/api/search/agent?q=<<$q>>",
+    "lux:typeForEvent": f"{searchUriHost}/api/search/event?q=<<$q>>",
+    "lux:typeForPlace": f"{searchUriHost}/api/search/place?q=<<$q>>",
+    "lux:workCarriedBy": f"{searchUriHost}/api/search/item?q=<<$q>>",
+    "lux:workContainedWorks": f"{searchUriHost}/api/search/work?q=<<$q>>",
+    "lux:workIncludedWorks": f"{searchUriHost}/api/search/work?q=<<$q>>",
+    "lux:workWorksAbout": f"{searchUriHost}/api/search/work?q=<<$q>>",
+}
 
+# TODO: Test if a single query for ?uri ?pred <uri> and then looking for which hal
+# links match the returned predicates would be faster or not
+
+sparql_hal_queries = {}
 for scope in hal_queries:
     sparql_hal_queries[scope] = {}
     for hal, query in hal_queries[scope].items():
+        if type(query) is str:
+            sparql_hal_queries[scope][hal] = ""
+            continue
         try:
             qscope = query["_scope"]
         except KeyError:
             # Already been processed
             continue
-        del query["_scope"]
         try:
             parsed = rdr.read(query, qscope)
         except Exception as e:
             print(f"Error parsing query for {hal}: {e}\n{query}")
             continue
-        spq = st.translate_search(parsed, qscope)
+        spq = st.translate_search_count(parsed, qscope)
         sparql_hal_queries[scope][hal] = spq
-        ts = spq.where.graph
-        if len(ts) == 2 and ts[0].predicate == "a":
-            try:
-                sparql_hal_singles[ts[1].predicate].append((hal, scope))
-            except KeyError:
-                sparql_hal_singles[ts[1].predicate] = [(hal, scope)]
-
 
 sorts = {
     "item": {
@@ -348,7 +436,200 @@ sorts = {
 }
 
 
-async def fetch_sparql(spq):
+related_list_names = {
+    "classificationOfItem-classification": "Is the Category of Objects Categorized As",
+    "classificationOfItem-encounteredAt": "Is the Category of Objects Encountered At",
+    "classificationOfItem-encounteredBy": "Is the Category of Objects Encountered By",
+    "classificationOfItem-material": "Is the Category of Objects Made Of",
+    "classificationOfItem-memberOf-usedForEvent": "Is the Category of Objects Used At",
+    "classificationOfItem-producedAt": "Is the Category of Objects Created At",
+    "classificationOfItem-producedBy": "Is the Category of Objects Created By",
+    "classificationOfItem-producedUsing": "Is the Category of Objects Created Using",
+    "classificationOfWork-aboutAgent": "Is the Category of Works About",
+    "classificationOfWork-aboutConcept": "Is the Category of Works About",
+    "classificationOfWork-aboutPlace": "Is the Category of Works About",
+    "classificationOfWork-carriedBy-memberOf-usedForEvent": "Is the Category of Works Carried By Objects Used At",
+    "classificationOfWork-classification": "Is the Category of Works Categorized As",
+    "classificationOfWork-createdAt": "Is the Category of Works Created At",
+    "classificationOfWork-createdBy": "Is the Category of Works Created By",
+    "classificationOfWork-language": "Is the Category of Works In",
+    "classificationOfWork-publishedBy": "Is the Category of Works Published By",
+    "classificationOfSet-aboutAgent": "Is the Category of Collections About",
+    "classificationOfSet-aboutConcept": "Is the Category of Collections About",
+    "classificationOfSet-aboutPlace": "Is the Category of Collections About",
+    "classificationOfSet-classification": "Is the Category of Collections Categorized As",
+    "classificationOfSet-createdAt": "Is the Category of Collections Created At",
+    "classificationOfSet-createdBy": "Is the Category of Collections Created By",
+    "classificationOfSet-publishedBy": "Is the Category of Collections Published By",
+    "created-aboutAgent": "Created Works About",
+    "created-aboutItem-memberOf-usedForEvent": "Created Works About Objects Used At",
+    "created-aboutConcept": "Created Works About",
+    "created-aboutPlace": "Created Works About",
+    "createdSet-aboutAgent": "Created Collections About",
+    "createdSet-aboutConcept": "Created Collections About",
+    "createdSet-aboutPlace": "Created Collections About",
+    "created-carriedBy-memberOf-usedForEvent": "Created Works Carried by Objects Used At",
+    "created-classification": "Created Works Categorized As",
+    "created-createdAt": "Created Works Created At",
+    "created-createdBy": "Co-created Works With",
+    "created-creationInfluencedBy": "Created Works Influenced By",
+    "created-language": "Created Works In",
+    "created-publishedBy": "Created Works Published By",
+    "createdSet-classification": "Created Collections Categorized As",
+    "createdSet-createdAt": "Created Collections Created At",
+    "createdSet-createdBy": "Co-created Collections With",
+    "createdSet-publishedBy": "Created Collections Published By",
+    "createdHere-aboutAgent": "Is the Place of Creation of Works About",
+    "createdHere-aboutConcept": "Is the Place of Creation of Works About",
+    "createdHere-aboutPlace": "Is the Place of Creation of Works About",
+    "createdHere-carriedBy-memberOf-usedForEvent": "Is the Place of Creation of Works Carried By Items Used At",
+    "createdHere-classification": "Is the Place of Creation of Works Categorized As",
+    "createdHere-createdAt": "Is the Place of Creation of Works Created At",
+    "createdHere-createdBy": "Is the Place of Creation of Works Created By",
+    "createdHere-language": "Is the Place of Creation of Works In",
+    "createdHere-publishedBy": "Is the Place of Creation of Works Published By",
+    "encountered-classification": "Encountered Objects Categorized As",
+    "encountered-encounteredAt": "Encountered Objects Encountered At",
+    "encountered-encounteredBy": "Co-encountered Objects With",
+    "encountered-material": "Encountered Objects Made Of",
+    "encountered-producedAt": "Encountered Objects Created At",
+    "encountered-producedBy": "Encountered Objects Created By",
+    "encountered-producedUsing": "Encountered Objects Created Using",
+    "encountered-productionInfluencedBy": "Encountered Objects Influenced By",
+    "encounteredHere-classification": "Is the Place of Encounter of Objects Categorized As",
+    "encounteredHere-encounteredAt": "Is the Place of Encounter of Objects Encountered At",
+    "encounteredHere-encounteredBy": "Is the Place of Encounter of Objects Encountered By",
+    "encounteredHere-material": "Is the Place of Encounter of Objects Made Of",
+    "encounteredHere-memberOf-usedForEvent": "Is the Place of Encounter of Objects Used At",
+    "encounteredHere-producedAt": "Is the Place of Encounter of Objects Created At",
+    "encounteredHere-producedBy": "Is the Place of Encounter of Objects Created By",
+    "encounteredHere-producedUsing": "Is the Place of Encounter of Objects Created Using",
+    "encountered-memberOf-usedForEvent": "Encountered Objects Used At",
+    "influencedCreation-aboutAgent": "Influenced Creation of Works About",
+    "influencedCreation-aboutConcept": "Influenced Creation of Works About",
+    "influencedCreation-aboutEvent": "Influenced Creation of Works About",
+    "influencedCreation-aboutItem-carries-aboutEvent": "Influenced Creation of Works About",
+    "influencedCreation-aboutItem-carries-creationCausedBy": "Influenced Creation of Works About",
+    "influencedCreation-createdBy": "Influenced Creation of Works Created By",
+    "influencedCreation-creationInfluencedBy": "Influenced Creation of Works Influenced By",
+    "influencedCreation-classification": "Influenced Creation of Works Categorized As",
+    "influencedCreation-language": "Influenced Creation of Works In",
+    "influencedCreation-publishedBy": "Influenced Creation of Works Published By",
+    "influencedProduction-classification": "Influenced Creation of Objects Categorized As",
+    "influencedProduction-encounteredBy": "Influenced Creation of Objects Encountered By",
+    "influencedProduction-material": "Influenced Creation of Objects Made Of",
+    "influencedProduction-producedBy": "Influenced Creation of Objects Created By",
+    "influencedProduction-producedUsing": "Influenced Creation of Objects Created Using",
+    "influencedProduction-productionInfluencedBy": "Influenced Creation of Objects Influenced By",
+    "languageOf-aboutAgent": "Is the Language of Works About",
+    "languageOf-aboutConcept": "Is the Language of Works About",
+    "languageOf-aboutPlace": "Is the Language of Works About",
+    "languageOf-carriedBy-memberOf-usedForEvent": "Is the Language of Works Carried by Objects Used At",
+    "languageOf-classification": "Is the Language of Works Categorized As",
+    "languageOf-createdAt": "Is the Language of Works Created At",
+    "languageOf-createdBy": "Is the Language of Works Created By",
+    "languageOf-language": "Is the Language of Works In",
+    "languageOf-publishedBy": "Is the Language of Works Published By",
+    "materialOfItem-classification": "Is the Material of Objects Categorized As",
+    "materialOfItem-encounteredAt": "Is the Material of Objects Encountered At",
+    "materialOfItem-encounteredBy": "Is the Material of Objects Encountered By",
+    "materialOfItem-material": "Is the Material of Objects Made Of",
+    "materialOfItem-memberOf-usedForEvent": "Is the Material of Objects Used At",
+    "materialOfItem-producedAt": "Is the Material of Objects Created At",
+    "materialOfItem-producedBy": "Is the Material of Objects Created By",
+    "materialOfItem-producedUsing": "Is the Material of Objects Created Using",
+    "produced-classification": "Created Objects Categorized As",
+    "produced-encounteredAt": "Created Objects Encountered At",
+    "produced-encounteredBy": "Created Objects Encountered By",
+    "produced-material": "Created Objects Made Of",
+    "produced-memberOf-usedForEvent": "Produced Objects Used At",
+    "produced-producedAt": "Created Objects Created At",
+    "produced-producedBy": "Co-created Objects With",
+    "produced-producedUsing": "Created Objects Using",
+    "produced-productionInfluencedBy": "Created Objects Influenced By",
+    "producedHere-classification": "Is the Place of Creation of Objects Categorized As",
+    "producedHere-encounteredAt": "Is the Place of Creation of Objects Encountered At",
+    "producedHere-encounteredBy": "Is the Place of Creation of Objects Encountered By",
+    "producedHere-material": "Is the Place of Creation of Objects Made Of",
+    "producedHere-memberOf-usedForEvent": "Is the Place of Creation of Objects Used At",
+    "producedHere-producedAt": "Is the Place of Creation of Objects Created At",
+    "producedHere-producedBy": "Is the Place of Creation of Objects Created By",
+    "producedHere-producedUsing": "Is the Place of Creation of Objects Created Using",
+    "published-aboutAgent": "Published Works About",
+    "published-aboutConcept": "Published Works About",
+    "published-aboutPlace": "Published Works About",
+    "published-carriedBy-memberOf-usedForEvent": "Published Works Carried by Objects Used At",
+    "published-classification": "Published Works Categorized As",
+    "published-createdAt": "Published Works Created At",
+    "published-createdBy": "Published Works Created By",
+    "published-creationInfluencedBy": "Published Works Influenced By",
+    "published-language": "Published Works In",
+    "published-publishedBy": "Published Works With",
+    # "setCreatedHere-aboutAgent": "Is the Place of Creation of Collections About",
+    # "setCreatedHere-aboutConcept": "Is the Place of Creation of Collections About",
+    # "setCreatedHere-aboutPlace": "Is the Place of Creation of Collections About",
+    # "setCreatedHere-carriedBy-memberOf-usedForEvent": "Is the Place of Creation of Collections Carried By Items Used At",
+    # "setCreatedHere-classification": "Is the Place of Creation of Collections Categorized As",
+    # "setCreatedHere-createdAt": "Is the Place of Creation of Collections Created At",
+    # "setCreatedHere-createdBy": "Is the Place of Creation of Collections Created By",
+    # "setCreatedHere-publishedBy": "Is the Place of Creation of Collections Published By",
+    "subjectOfWork-aboutAgent": "Is the Subject of Works About",
+    "subjectOfWork-aboutConcept": "Is the Subject of Works About",
+    "subjectOfWork-aboutPlace": "Is the Subject of Works About",
+    "subjectOfWork-carriedBy-memberOf-usedForEvent": "Is the Subject of Works Carried by Objects Used At",
+    "subjectOfWork-classification": "Is the Subject of Works Categorized As",
+    "subjectOfWork-createdAt": "Is the Subject of Works Created At",
+    "subjectOfWork-createdBy": "Is the Subject of Works Created By",
+    "subjectOfWork-creationInfluencedBy": "Is the Subject of Works Influenced By",
+    "subjectOfWork-language": "Is the Subject of Works In",
+    "subjectOfWork-publishedBy": "Is the Subject of Works Published By",
+    "subjectOfSet-aboutAgent": "Is the Subject of Collections About",
+    "subjectOfSet-aboutConcept": "Is the Subject of Collections About",
+    "subjectOfSet-aboutPlace": "Is the Subject of Collections About",
+    "subjectOfSet-classification": "Is the Subject of Collections Categorized As",
+    "subjectOfSet-createdAt": "Is the Subject of Collections Created At",
+    "subjectOfSet-createdBy": "Is the Subject of Collections Created By",
+    "subjectOfSet-publishedBy": "Is the Subject of Collections Published By",
+    "usedToProduce-classification": "Is the Technique of Objects Categorized As",
+    "usedToProduce-encounteredAt": "Is the Technique of Objects Encountered At",
+    "usedToProduce-encounteredBy": "Is the Technique of Objects Encountered By",
+    "usedToProduce-material": "Is the Technique of Objects Made Of",
+    "usedToProduce-memberOf-usedForEvent": "Is the Technique of Objects Used At",
+    "usedToProduce-producedAt": "Is the Technique of Objects Created At",
+    "usedToProduce-producedBy": "Is the Technique of Objects Created By",
+    "usedToProduce-producedUsing": "Is the Technique of Objects Created Using",
+}
+
+related_list_queries = {}
+related_list_sparql = {}
+for name in related_list_names.keys():
+    bits = name.split("-")
+    bits.append("padding-for-id")
+    q = {}
+    top_q = q
+    for b in bits[:-1]:
+        q[b] = {}
+        q = q[b]
+    q["id"] = "URI-HERE"
+    scope = None
+    for s in cfg.lux_config["terms"]:
+        if bits[0] in cfg.lux_config["terms"][s]:
+            scope = s
+            break
+    if scope is None:
+        print(f"Couldn't find scope for {name}")
+        continue
+    lq = rdr.read(top_q, scope)
+    spq = st.translate_search_related(lq)
+    try:
+        related_list_queries[scope][name] = json.dumps(top_q, separators=(",", ":"))
+        related_list_sparql[scope][name] = spq.get_text()
+    except Exception:
+        related_list_queries[scope] = {name: json.dumps(top_q, separators=(",", ":"))}
+        related_list_sparql[scope] = {name: spq.get_text()}
+
+
+async def fetch_sparql_wrapper(spq):
     if type(spq) is str:
         q = spq
     else:
@@ -360,6 +641,28 @@ async def fetch_sparql(spq):
     except Exception as e:
         print(q)
         print(e)
+        results = []
+    return results
+
+
+async def fetch_sparql(spq):
+    if type(spq) is str:
+        q = spq
+    else:
+        q = spq.get_text()
+    try:
+        async with aiohttp.ClientSession() as session:
+            async with session.post(
+                "http://localhost:7010/sparql",
+                data={"query": q},
+                headers={"Accept": "application/sparql-results+json"},
+            ) as response:
+                ret = await response.json()
+                results = [r for r in ret["results"]["bindings"]]
+    except Exception as e:
+        print(q)
+        print(e)
+        raise
         results = []
     return results
 
@@ -403,13 +706,14 @@ async def do_search(scope, q={}, page=1, pageLength=20, sort=""):
     qt2 = spq2.get_text()
     ttl_res = await fetch_sparql(qt2)
     ttl = ttl_res[0]["count"]["value"]
+    uq = urllib.parse.quote(q)
 
     js = {
         "@context": "https://linked.art/ns/v1/search.json",
-        "id": f"https://localhost:5001/api/search/{scope}?q={q}&page=1",
+        "id": f"http://localhost:5001/api/search/{scope}?q={uq}&page=1",
         "type": "OrderedCollectionPage",
         "partOf": {
-            "id": "",
+            "id": f"http://localhost:5001/api/search-estimate/{scope}?q={uq}",
             "type": "OrderedCollection",
             "label": {"en": ["Search Results"]},
             "summary": {"en": ["Description of Search Results"]},
@@ -434,9 +738,10 @@ async def do_search(scope, q={}, page=1, pageLength=20, sort=""):
 @app.get("/api/search-estimate/{scope}")
 async def do_search_estimate(scope, q={}, page=1):
     jq = json.loads(q)
+    uq = urllib.parse.quote(q)
     js = {
         "@context": "https://linked.art/ns/v1/search.json",
-        "id": f"http://localhost:5001/api/search/{scope}?q={q}",
+        "id": f"http://localhost:5001/api/search/{scope}?q={uq}",
         "type": "OrderedCollection",
         "label": {"en": ["Search Results"]},
         "summary": {"en": ["Description of Search Results"]},
@@ -478,16 +783,18 @@ async def do_facet(scope, q={}, name="", page=1):
     jq = json.loads(q)
     parsed = rdr.read(jq, scope)
 
+    uq = urllib.parse.quote(q)
     js = {
         "@context": "https://linked.art/ns/v1/search.json",
-        "id": f"http://localhost:5001/api/facets/{scope}?q={q}&name={name}&page={page}",
+        "id": f"http://localhost:5001/api/facets/{scope}?q={uq}&name={name}&page={page}",
         "type": "OrderedCollectionPage",
         "partOf": {"type": "OrderedCollection", "totalItems": 1000},
         "orderedItems": [],
     }
 
+    pname = None
+    pname2 = None
     if name.endswith("RecordType"):
-        # special handling needed
         pred = "a"
     elif name.endswith("IsOnline"):
         return JSONResponse(js)
@@ -505,71 +812,76 @@ async def do_facet(scope, q={}, name="", page=1):
                 pred = pred[0]
             if pred == "missed":
                 pred = pname2
-
     if ":" not in pred and pred != "a":
         pred = f"lux:{pred}"
-    spq = st.translate_facet(parsed, pred)
-    print(f"FACET: {name} / {pred} about to run...")
-    res = await fetch_sparql(spq)
-    print(f"FACET: {name} returned {len(res)}")
+    # print(f"{name} {pname} {pname2} {pred}")
 
-    # fq = LuxBoolean("AND")
-    # fq.provides_scope = scope
-    # fq.add(parsed)
-    # print(res)
+    spq = st.translate_facet(parsed, pred)
+    res = await fetch_sparql(spq)
+    if res:
+        spq2 = st.translate_facet_count(parsed, pred)
+        res2 = await fetch_sparql(spq2)
+        ttl = int(res2[0]["count"]["value"])
+        js["partOf"]["totalItems"] = ttl
+
     for r in res:
-        # lr = LuxRelationship(pname2, parent=fq)
-        # LuxLeaf(
-        #    "id",
-        #    value=r["facet"]["value"].replace(
-        #        "http://localhost:5001/data/", "https://lux.collections.yale.edu/data/"
-        #    ),
-        #    parent=lr,
-        # )
+        # Need to know type of facet (per datatype below)
+        # and what query to AND based on the predicate
+        # e.g:
+        # AND: [(query), {"rel": {"id": "val"}}]
+
         if r["facet"]["type"] == "uri":
+            clause = {pname2: {"id": r["facet"]["value"]}}
             val = (
                 r["facet"]["value"]
                 .replace("https://lux.collections.yale.edu/data/", "http://localhost:5001/data/")
                 .replace("https://lux.collections.yale.edu/ns/", "")
                 .replace("https://linked.art/ns/terms/", "")
             )
+
         elif r["facet"]["datatype"].endswith("int") or r["facet"]["datatype"].endswith("decimal"):
             val = int(r["facet"]["value"])
+            clause = {pname2: val}
         elif r["facet"]["datatype"].endswith("float"):
             val = float(r["facet"]["value"])
+            clause = {pname2: val}
+
         elif r["facet"]["datatype"].endswith("dateTime"):
             val = r["facet"]["value"]
+            clause = {pname2: val}
         else:
             raise ValueError(r)
 
+        nq = {"AND": [clause, jq]}
+        qstr = urllib.parse.quote(json.dumps(nq, separators=(",", ":")))
         js["orderedItems"].append(
             {
-                "id": f"http://localhost:5001/api/search-estimate/{scope}?q=",
+                "id": f"http://localhost:5001/api/search-estimate/{scope}?q={qstr}",
                 "type": "OrderedCollection",
                 "value": val,
                 "totalItems": int(r["facetCount"]["value"]),
             }
         )
-        # fq.children.pop()
 
     return JSONResponse(content=js)
 
 
 @app.get("/api/related-list/{scope}")
-async def do_related_list(scope, name, uri):
+async def do_related_list(scope, name, uri, page=1):
     """?name=relatedToAgent&uri=(uri-of-record)"""
+    uuri = urllib.parse.quote(uri)
     js = {
         "@context": "https://linked.art/ns/v1/search.json",
-        "id": "",
+        "id": f"http://localhost:5001/api/related-list/{scope}?name={name}&uri={uuri}&page={page}",
         "type": "OrderedCollectionPage",
         "orderedItems": [],
     }
     entry = {
-        "id": "",
+        "id": f"http://localhost:5001/api/search-estimate/{scope}?q=QUERY-HERE",
         "type": "OrderedCollection",
         "totalItems": 0,
         "first": {
-            "id": "",
+            "id": f"http://localhost:5001/api/search/{scope}?q=QUERY-HERE",
             "type": "OrderedCollectionPage",
         },
         "value": "",
@@ -579,47 +891,43 @@ async def do_related_list(scope, name, uri):
     # name gives related list type (relatedToAgent)
     # uri is the anchoring entity
 
-    qry = f"""PREFIX lux: <https://lux.collections.yale.edu/ns/>
-SELECT DISTINCT ?what ?prep ?prep2 (COUNT(?objwk) AS ?ct) WHERE {{
-    ?what a lux:{scope[0].upper()}{scope[1:]} .
-    {{
-      ?objwk a lux:Item ;
-            ?prep ?what ;
-            ?prep2 <{uri}> .
-      FILTER (?prep2 != lux:itemAny)
-      FILTER (?prep != lux:itemAny)
-    }}
-    UNION {{
-      ?objwk a lux:Work ;
-            ?prep ?what ;
-      	    ?prep2 <{uri}> .
-      FILTER (?prep != lux:workAny)
-	  FILTER (?prep2 != lux:workAny)
-      FILTER (?prep2 != lux:placeOfWorkPublication)
-   	  FILTER (?prep != lux:placeOfWorkPublication)
-    }}
-}} GROUP BY ?what ?prep ?prep2 ORDER BY ?what
-    """
-    res = await fetch_sparql(qry)
+    all_res = {}
     cts = {}
+    for name, spq in related_list_sparql[scope].items():
+        qry = spq.replace("URI-HERE", uri)
+        res = await fetch_sparql(qry)
+        for row in res:
+            what = row["uri"]["value"]
+            ct = int(row["count"]["value"])
+            try:
+                cts[what] += ct
+            except KeyError:
+                cts[what] = ct
+            sqry = related_list_queries[scope][name].replace("URI-HERE", uri)
+            try:
+                all_res[what].append((name, ct, sqry))
+            except Exception:
+                all_res[what] = [(name, ct, sqry)]
 
-    for row in res:
-        what = row["what"]["value"]
-        prep = row["prep"]["value"].rsplit("/", 1)[-1]
-        prep2 = row["prep2"]["value"].rsplit("/", 1)[-1]
-        ct = int(row["ct"]["value"])
-        try:
-            cts[what] += ct
-        except KeyError:
-            cts[what] = ct
-        e = copy.deepcopy(entry)
-        e["value"] = what
-        e["totalItems"] = ct
-        e["name"] = f"{prep} -> {prep2}"
-        js["orderedItems"].append(e)
+    # FIXME: These queries aren't complete
+    # https://lux.collections.yale.edu/api/related-list/concept?&name=relatedToAgent&uri=https%3A%2F%2Flux.collections.yale.edu%2Fdata%2Fperson%2F66049111-383e-4526-9632-2e9b6b6302dd
+    # vs
+    # http://localhost:5001/api/related-list/concept?name=relatedToAgent&uri=https%3A//lux.collections.yale.edu/data/person/66049111-383e-4526-9632-2e9b6b6302dd
+    # Need to include `what` in the query, as per facets
 
+    all_sort = sorted(cts, key=cts.get, reverse=True)
+    for what in all_sort[:25]:
+        es = sorted(all_res[what], key=lambda x: x[1], reverse=True)
+        for rel, ct, sqry in es:
+            usqry = urllib.parse.quote(sqry)
+            e = copy.deepcopy(entry)
+            e["id"] = e["id"].replace("QUERY-HERE", usqry)
+            e["value"] = what
+            e["totalItems"] = ct
+            e["name"] = related_list_names[rel]
+            e["first"]["id"] = e["first"]["id"].replace("QUERY-HERE", usqry)
+            js["orderedItems"].append(e)
     js["orderedItems"].sort(key=lambda x: cts[x["value"]], reverse=True)
-
     return JSONResponse(content=js)
 
 
@@ -628,6 +936,43 @@ async def do_translate(scope, q={}):
     # take simple search in text and return json query equivalent
     js = {"_scope": scope, "AND": [{"text": q}]}
     return JSONResponse(content=js)
+
+
+async def do_hal_links(scope, identifier):
+    uri = f"https://lux.collections.yale.edu/data/{scope}/{identifier}"
+    links = {}
+    if scope in ["person", "group"]:
+        hscope = "agent"
+    elif scope in ["object", "digital"]:
+        hscope = "item"
+    elif scope in ["place", "set", "event", "concept"]:
+        hscope = scope
+    elif scope in ["period", "activity"]:
+        hscope = "event"
+    elif scope in ["text", "visual", "image"]:
+        hscope = "work"
+    else:
+        print(f"MISSED SCOPE IN HAL: {scope}")
+        hscope = scope
+    uuri = urllib.parse.quote(uri)
+    for hal, spq in sparql_hal_queries[hscope].items():
+        if type(spq) is str:
+            # related-list ... just add it
+            href = hal_link_templates[hal].replace("<<$id>>", uuri)
+            links[hal] = {"href": href, "_estimate": 1}
+            continue
+        qt = spq.get_text()
+        qt = qt.replace("URI-HERE", uri)
+        res = await fetch_sparql(qt)
+        ttl = int(res[0]["count"]["value"])
+        if ttl > 0:
+            jq = hal_queries[hscope][hal]
+            jqs = json.dumps(jq, separators=(",", ":"))
+            jqs = jqs.replace("URI-HERE", uri)
+            jqs = urllib.parse.quote(jqs)
+            href = hal_link_templates[hal].replace("<<$q>>", jqs)
+            links[hal] = {"href": href, "_estimate": 1}
+    return links
 
 
 @app.get("/data/{scope}/{identifier}")
@@ -650,15 +995,10 @@ async def do_get_record(scope, identifier, profile=None):
             ],
             "self": {"href": f"http://localhost:5001/data/{scope}/{identifier}"},
         }
-        if profile is None:
+        if not profile:
             # Calculate _links here
-            sqry = f"SELECT DISTINCT ?pred WHERE {{ ?what ?pred <https://lux.collections.yale.edu/data/{scope}/{identifier}> . }}"
-            res = await fetch_sparql(sqry)
-            for r in res:
-                pred = r["pred"]["value"].rsplit("/", 1)[-1]
-                print(f"profile: {profile} / {pred}")
-                # hal, halQuery = make_single_hal(pred, scope, identifier)
-                # links[hal] = halQuery
+            more_links = await do_hal_links(scope, identifier)
+            links.update(more_links)
 
         jstr = jstr.replace("https://lux.collections.yale.edu/data/", "http://localhost:5001/data/")
         js2 = json.loads(jstr)
