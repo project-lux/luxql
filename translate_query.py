@@ -4,27 +4,49 @@ import json
 
 templates = {}
 queries = {}
+query_by_scope = {}
+
 with open("builder.js") as fh:
     chunk = []
     acc = False
+    qbs = False
     for line in fh:
         line = line.strip()
+
+        if line.startswith("const keyFuncNameMap"):
+            qbs = True
+        elif qbs and line.endswith("{"):
+            scope = line.split(":")[0].strip()
+            query_by_scope[scope] = {}
+            qscope = query_by_scope[scope]
+        elif qbs and line.startswith('"lux:'):
+            try:
+                name, q = line.split(": ")
+            except Exception:
+                print(line)
+                continue
+            name = name[1:-1]
+            q = q.split(".")[1]
+            qscope[name] = q
+
         if line.startswith("const queryBuilders"):
             # start reading
             acc = True
+            qbs = False
         elif acc and len(chunk) < 4:
             chunk.append(line)
         elif acc:
             # process chunk and start new one
             if chunk[0] == "}":
                 break
+            print(chunk)
             key = f"lux:{chunk[0].split(':')[1].strip()[:-1]}"
             if "queries." in chunk[1]:
                 qname = chunk[1].split("queries.")[1].split("(")[0].strip()
             else:
                 qname = "-"
             href = chunk[2].replace("return `$", "'")
-            href = href.replace("config.", "")
+            href = href.replace("config.", "").replace(";", "")
             href = href.replace("`", "'").replace("${", "{").replace("{idEnc}", "{id}")[1:-1]
             chunk = [line]
             templates[key] = href
@@ -34,6 +56,8 @@ with open("hal_link_templates.json", "w") as outh:
     outh.write(json.dumps(templates, indent=2))
 with open("hal_link_queries.json", "w") as outh:
     outh.write(json.dumps(queries, indent=2))
+with open("query_by_scope.json", "w") as outh:
+    outh.write(json.dumps(query_by_scope, indent=2))
 
 cre = re.compile(" = \((.+?)\) =>")
 keyre = re.compile("([a-zA-Z0-9_]+):")
