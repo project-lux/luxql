@@ -628,7 +628,7 @@
       },
       "recordType": {
         "label": "Object Class",
-        "helpText": "Search for records categorized as either a \"Physical Object\" or a \"Digital Object\". Physical Objects are physical items, such as paintings, sculptures, fossils and other specimens, and archival objects. Individual physical copies of books are included in this class. Digital Object are digital items, such as internet resources (datasets, e-books, and other digital files). Digitized images of collection items that are physical objects can be found with the “Is Online” facet on Physical Objects.",
+        "helpText": "Search for records categorized as either a \"Physical Object\" or a \"Digital Object\". Physical Objects are physical items, such as paintings, sculptures, fossils and other specimens, and archival objects. Individual physical copies of books are included in this class. Digital Object are digital items, such as internet resources (datasets, e-books, and other digital files). Digitized images of collection items that are physical objects can be found with the \u201cIs Online\u201d facet on Physical Objects.",
         "relation": "text",
         "allowedOptionsName": "keyword"
       },
@@ -1129,7 +1129,10 @@
         "wildcarded"
       ]
     },
-    "exact": { "allowed": ["exact"], "default": ["exact"] }
+    "exact": {
+      "allowed": ["exact"],
+      "default": ["exact"]
+    }
   },
   "stopWords": [
     "a",

@@ -21,6 +21,10 @@ class LuxConfig(object):
             resp = requests.get(url, timeout=10)
             if resp.status_code == 200:
                 self.lux_config = resp.json()
+                # recache it
+                fn = os.path.join(os.path.dirname(__file__), "advanced-search-config.json")
+                with open(fn, "w") as fh:
+                    fh.write(json.dumps(self.lux_config, indent=2))
             else:
                 raise ValueError(f"Couldn't retrieve configuration from {url}")
         except Exception:
@@ -200,7 +204,7 @@ class LuxLeaf(LuxQuery):
             raise ValueError(f"{self.comparitor} is not a known comparitor")
         self.options = options
         for o in self.options:
-            if not o in self.config.possible_options:
+            if o not in self.config.possible_options:
                 raise ValueError(f"{o} is not a known option")
         self.children = None
         self.weight = weight
@@ -210,7 +214,7 @@ class LuxLeaf(LuxQuery):
     def calculate_scopes(self):
         super().calculate_scopes()
         for s in self.possible_provides_scopes:
-            if not s in self.config.module_config["leaf_scopes"]:
+            if s not in self.config.module_config["leaf_scopes"]:
                 raise ValueError(f"Unknown leaf scope '{s}' in {self.field}")
             if self.value is not None:
                 self.test_my_value({"relation": s})
@@ -221,13 +225,13 @@ class LuxLeaf(LuxQuery):
             raise ValueError(f"Cannot create a {self.class_name} called {self.field} as it is a Relationship")
         elif info["relation"] == "text":
             # value must be a string
-            if type(self.value) != str:
+            if type(self.value) is not str:
                 raise ValueError(f"Text values must be strings; '{self.field}' received {self.value})")
             if "allowedOptionsName" in info:
                 optName = info["allowedOptionsName"]
                 okay_opts = self.config.lux_config["options"][optName]["allowed"]
                 for o in self.options:
-                    if not o in okay_opts:
+                    if o not in okay_opts:
                         raise ValueError(f"Unknown option specified: {o}\nAllowed: {', '.join(okay_opts)}")
         elif self.options:
             raise ValueError("Only 'text' leaf nodes can have options")
@@ -235,12 +239,12 @@ class LuxLeaf(LuxQuery):
             # test value is a datestring
             if not self.config.valid_date_re.match(self.value):
                 raise ValueError(
-                    f"Dates require a specific format: 'YYYY-MM-DDThh:mm:ss.000Z' or '-YYYYYY-MM-DDThh:mm:ss.000Z'"
+                    "Dates require a specific format: 'YYYY-MM-DDThh:mm:ss.000Z' or '-YYYYYY-MM-DDThh:mm:ss.000Z'"
                 )
             # Test there's a comparitor
             if not self.comparitor:
                 raise ValueError(f"Dates require a comparitor")
-            elif not self.comparitor in self.config.module_config["comparitors"]:
+            elif self.comparitor not in self.config.module_config["comparitors"]:
                 raise ValueError(f"{self.comparitor} is not a valid comparitor")
         elif info["relation"] == "float":
             # test value is a number
