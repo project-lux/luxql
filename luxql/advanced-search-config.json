@@ -1130,8 +1130,12 @@
       ]
     },
     "exact": {
-      "allowed": ["exact"],
-      "default": ["exact"]
+      "allowed": [
+        "exact"
+      ],
+      "default": [
+        "exact"
+      ]
     }
   },
   "stopWords": [

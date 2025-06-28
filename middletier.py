@@ -45,7 +45,12 @@ async def fetch_sparql(spq):
                 headers={"Accept": "application/sparql-results+json"},
             ) as response:
                 ret = await response.json()
-                results = [r for r in ret["results"]["bindings"]]
+                if "results" in ret:
+                    results = [r for r in ret["results"]["bindings"]]
+                else:
+                    print(q)
+                    print(json.dumps(ret, indent=2))
+                    results = []
     except Exception as e:
         print(q)
         print(e)
@@ -83,6 +88,7 @@ async def do_search(scope, q={}, page=1, pageLength=20, sort=""):
         ascdesc = "DESC"
     pred = sorts[scope].get(sort, "relevance")
 
+    q = q.replace("http://localhost:5001/", "https://lux.collections.yale.edu/")
     jq = json.loads(q)
     parsed = rdr.read(jq, scope)
     spq = st.translate_search(parsed, limit=pageLength, offset=offset, sort=pred, order=ascdesc)
@@ -124,6 +130,7 @@ async def do_search(scope, q={}, page=1, pageLength=20, sort=""):
 
 @app.get("/api/search-estimate/{scope}")
 async def do_search_estimate(scope, q={}, page=1):
+    q = q.replace("http://localhost:5001/", "https://lux.collections.yale.edu/")
     jq = json.loads(q)
     uq = urllib.parse.quote(q)
     js = {
@@ -150,6 +157,8 @@ async def do_search_estimate(scope, q={}, page=1):
 async def do_search_match(q={}):
     scope = q["_scope"]
     del q["_scope"]
+
+    q = q.replace("http://localhost:5001/", "https://lux.collections.yale.edu/")
     jq = json.loads(q)
     parsed = rdr.read(jq, scope)
     spq2 = st.translate_search_count(parsed)
@@ -167,6 +176,7 @@ async def do_search_match(q={}):
 
 @app.get("/api/facets/{scope}")
 async def do_facet(scope, q={}, name="", page=1):
+    q = q.replace("http://localhost:5001/", "https://lux.collections.yale.edu/")
     jq = json.loads(q)
     parsed = rdr.read(jq, scope)
 
@@ -329,6 +339,11 @@ async def do_translate(scope, q={}):
 
 
 async def do_hal_links(scope, identifier):
+    if os.path.exists(f"hal_cache/{identifier}.json"):
+        with open(f"hal_cache/{identifier}.json", "r") as f:
+            links = json.load(f)
+        return links
+
     uri = f"https://lux.collections.yale.edu/data/{scope}/{identifier}"
     links = {}
     if scope in ["person", "group"]:
@@ -348,7 +363,7 @@ async def do_hal_links(scope, identifier):
     for hal, spq in sparql_hal_queries[hscope].items():
         if type(spq) is str:
             # related-list ... just add it
-            href = hal_link_templates[hal].replace("<<$id>>", uuri)
+            href = hal_link_templates[hal].replace("{id}", uuri)
             links[hal] = {"href": href, "_estimate": 1}
             continue
         qt = spq.get_text()
@@ -360,8 +375,11 @@ async def do_hal_links(scope, identifier):
             jqs = json.dumps(jq, separators=(",", ":"))
             jqs = jqs.replace("URI-HERE", uri)
             jqs = urllib.parse.quote(jqs)
-            href = hal_link_templates[hal].replace("<<$q>>", jqs)
+            href = hal_link_templates[hal].replace("{q}", jqs)
             links[hal] = {"href": href, "_estimate": 1}
+
+    with open(f"hal_cache/{identifier}.json", "w") as f:
+        json.dump(links, f)
     return links
 
 
