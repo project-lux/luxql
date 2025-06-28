@@ -11,7 +11,7 @@ st = SparqlTranslator(cfg)
 
 searchUriHost = "http://localhost:5001"
 
-with open("config_facets.json") as fh:
+with open("config/config_facets.json") as fh:
     facets = json.load(fh)
 
 qs = os.listdir("queries")
@@ -21,7 +21,7 @@ for q in qs:
         with open(f"queries/{q}", "r") as f:
             queries[q[:-5]] = json.load(f)
 
-with open("query_by_scope.json") as fh:
+with open("config/query_by_scope.json") as fh:
     hal_queries = json.load(fh)
 for block in hal_queries.values():
     for k, v in block.items():
@@ -33,7 +33,7 @@ for block in hal_queries.values():
             except Exception:
                 print(f"Failed to resolve {k}")
 
-with open("hal_link_templates.json") as fh:
+with open("config/hal_link_templates.json") as fh:
     hal_link_templates = json.load(fh)
 for k, v in hal_link_templates.items():
     hal_link_templates[k] = v.replace("{searchUriHost}", searchUriHost)
@@ -61,10 +61,10 @@ for scope in hal_queries:
         spq = st.translate_search_count(parsed, qscope)
         sparql_hal_queries[scope][hal] = spq
 
-with open("config_sorts.json", "r") as f:
+with open("config/config_sorts.json", "r") as f:
     sorts = json.load(f)
 
-with open("config_related_list_names.json", "r") as f:
+with open("config/config_related_list_names.json", "r") as f:
     related_list_names = json.load(f)
 
 related_list_queries = {}
