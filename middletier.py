@@ -68,7 +68,17 @@ async def do_get_config():
 async def do_search(scope, q={}, page=1, pageLength=20, sort=""):
     if scope == "multi":
         # Handle multi scope search for archiveSort
-        # FIXME -- figure this out
+        #
+        # objectOrSetMemberOfSet is just:
+        # ?uri lux:itemMemberOfSet|lux:setMemberOfSet <set-uri>
+        #
+        # setCurrentHierarchyPage:
+        # the other entries in that are part of the archive that I am part of
+        #
+        # ?what lux:itemMemberOfSet|lux:setMemberOfSet ?parent .
+        # <set-uri> lux:setMemberOfSet ?parent .
+        # ?parent lux:setClassification <https://lux.collections.yale.edu/data/concept/0c8e015e-8ead-43e7-ad8c-c06c08448019>
+
         print(q)
         return JSONResponse({})
 

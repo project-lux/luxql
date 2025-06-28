@@ -10,6 +10,32 @@ config = dict(
     leaf_scopes=["text", "date", "float", "boolean"],
 )
 
+# TODO: Allow `multi` scope like this?
+# {
+#     "_scope": "multi",
+#     "OR": [
+#         {
+#             "_scope": "item",
+#             "memberOf": {
+#                 "AND": [
+#                     {"classification": {"identifier": "http://vocab.getty.edu/aat/300375748"}},
+#                     {"containingSet": {"id": "URI-HERE"}},
+#                 ]
+#             },
+#         },
+#         {
+#             "_scope": "set",
+#             "memberOf": {
+#                 "AND": [
+#                     {"classification": {"identifier": "http://vocab.getty.edu/aat/300375748"}},
+#                     {"containingSet": {"id": "URI-HERE"}},
+#                 ]
+#             },
+#         },
+#     ],
+# }
+#
+
 
 class LuxConfig(object):
     """Handler for retrieving and processing the LUX search configuration"""
