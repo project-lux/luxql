@@ -801,7 +801,7 @@ async def do_facet(scope, q={}, name="", page=1):
     elif name == "responsibleCollections":
         pred = "lux:itemMemberOfSet/lux:setCuratedBy"
     elif name == "responsibleUnits":
-        pred = "lux:itemMemberOfSet/lux:setCuratedBy/lux:groupMemberOfGroup"
+        pred = "lux:itemMemberOfSet/lux:setCuratedBy/lux:agentMemberOfGroup"
     else:
         pname = facets.get(name, None)
         pname2 = pname["searchTermName"]
@@ -922,12 +922,15 @@ async def do_related_list(scope, name, uri, page=1):
             usqry = urllib.parse.quote(sqry)
             e = copy.deepcopy(entry)
             e["id"] = e["id"].replace("QUERY-HERE", usqry)
-            e["value"] = what
+            e["value"] = what.replace("https://lux.collections.yale.edu/", "http://localhost:5001/")
             e["totalItems"] = ct
             e["name"] = related_list_names[rel]
             e["first"]["id"] = e["first"]["id"].replace("QUERY-HERE", usqry)
             js["orderedItems"].append(e)
-    js["orderedItems"].sort(key=lambda x: cts[x["value"]], reverse=True)
+    js["orderedItems"].sort(
+        key=lambda x: cts[x["value"].replace("http://localhost:5001/", "https://lux.collections.yale.edu/")],
+        reverse=True,
+    )
     return JSONResponse(content=js)
 
 
