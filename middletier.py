@@ -259,7 +259,6 @@ async def do_facet(scope, q={}, name="", page=1):
                 "totalItems": int(r["facetCount"]["value"]),
             }
         )
-
     return JSONResponse(content=js)
 
 
