@@ -364,7 +364,7 @@ class SparqlTranslator:
                 clause = Pattern(union=True)
             x += 1
             self.translate_query(child, clause)
-            parent.add_nested_graph_pattern(graph_pattern=clause)
+            parent.add_nested_graph_pattern(clause)
 
     def translate_and(self, query, parent):
         # just add the patterns in
@@ -373,8 +373,11 @@ class SparqlTranslator:
             self.translate_query(child, parent)
 
     def translate_not(self, query, parent):
-        # FILTER NOT EXISTS { ...} ?
-        pass
+        # FILTER NOT EXISTS { ...}
+        clause = Pattern(not_exists=True)
+        query.children[0].var = query.var
+        self.translate_query(query.children[0], clause)
+        parent.add_nested_graph_pattern(clause)
 
     def get_predicate(self, rel, scope):
         # only relationships
@@ -443,8 +446,10 @@ class SparqlTranslator:
 
             # Test if we should make them prefixes or phrases
             # prefix = word*
-            # phrase = search for words and then FILTER()
-            # Filter(f'CONTAINS({full-text-var}, "{phrase here}")')
+
+            # FIXME:
+            # invalid characters in sparql variable names are replaced with "_{ord(chr)}_"
+            # eg o'malley --> o_39_malley --> ?ql_score_word_txt110_o_39_malley
 
             if query.field == self.name_field:
                 value = " ".join(words)
@@ -456,12 +461,11 @@ class SparqlTranslator:
                     word_scores = []
                     for word in words:
                         word_scores.append(f"(?ql_score_word_txt0{self.counter}0_{word} *2)")
-                    patt.add_binding(Binding(" + ".join(word_scores), f"?score{self.counter}"))
+                    patt.add_binding(Binding(" + ".join(word_scores), f"?score_{self.counter}"))
                 if phrases:
                     fvar = f"?field0{self.counter}0"
                     for p in phrases:
                         patt.add_filter(Filter(f'CONTAINS(LCASE({fvar}), "{p.lower()}")'))
-
                 parent.add_nested_graph_pattern(patt)
                 self.scored.append(self.counter)
 
@@ -470,13 +474,6 @@ class SparqlTranslator:
 
                 top = Pattern()
                 wx = 0
-
-                val = query.value.lower()
-                try:
-                    words = shlex.split(val)
-                except:
-                    raise
-                phrases = [w for w in words if " " in w]
 
                 for w in words:
                     wpatt = Pattern()
@@ -517,7 +514,13 @@ class SparqlTranslator:
                     for x in range(wx):
                         binds.append(f"COALESCE(?score_{self.counter}{x}, 0)")
                     parent.add_binding(Binding(" + ".join(binds), f"?score_{self.counter}"))
-                self.scored.append(self.counter)
+                    self.scored.append(self.counter)
+                if phrases:
+                    fvar = f"?field2{self.counter}0"
+                    nvar = f"?field1{self.counter}0"
+                    ### How to also test OR in name text?
+                    for p in phrases:
+                        top.add_filter(Filter(f'CONTAINS(LCASE({fvar}), "{p}")'))
 
             elif query.field == self.id_field:
                 v = Values([f"<{query.value}>"], query.var)

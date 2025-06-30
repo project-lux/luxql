@@ -18,17 +18,25 @@ from middletier_config import hal_link_templates, hal_queries, sparql_hal_querie
 from middletier_config import sorts, facets
 from middletier_config import related_list_names, related_list_queries, related_list_sparql
 
+from boolean_query_parser import BooleanQueryParser
+
 ### To do
 #
 # * run the multi scope set queries (sparql in comments below)
 # * figure out how to create the related list per-entry queries
 # * Add a "no" option for hasDigitalImage
-# * fix "quoted string" again
-# * Implement NOT
-# * Parser for simple search with (AND OR NOT)
+# * get "quoted string" for anywhere to match in ref name
 # * do isPublicDomain and isOnline (in data, plus code)
 #
 
+### Known qlever bugs impacting us
+#
+# * words with 3 or fewer characters cause a crash in qlever:
+#   https://github.com/ad-freiburg/qlever/issues/1404
+#   If we could configure prefix size to 1, we could avoid (line 401 in TextIndexBuilder.cpp)
+# * ' - and other characters cause text queries to fail (e.g. bobby o'malley)
+#   see _ord()_ variable name in luxql/sparql.py
+#
 
 conn = psycopg2.connect(user="rs2668", dbname="rs2668")
 table = "merged_data_cache"
@@ -42,6 +50,8 @@ app.add_middleware(
     allow_methods=["*"],
     allow_headers=["*"],
 )
+
+query_parser = BooleanQueryParser()
 
 
 async def fetch_sparql(spq):
@@ -115,6 +125,7 @@ async def do_search(scope, q={}, page=1, pageLength=20, sort=""):
     parsed = rdr.read(jq, scope)
     spq = st.translate_search(parsed, limit=pageLength, offset=offset, sort=pred, order=ascdesc)
     qt = spq.get_text()
+    print(qt)
     res = await fetch_sparql(qt)
 
     spq2 = st.translate_search_count(parsed)
@@ -362,7 +373,16 @@ async def do_related_list(scope, name, uri, page=1):
 @app.get("/api/translate/{scope}")
 async def do_translate(scope, q={}):
     # take simple search in text and return json query equivalent
-    js = {"_scope": scope, "AND": [{"text": q}]}
+
+    js = {"_scope": scope}
+    try:
+        qp = query_parser.parse(q)
+        # now translate AST into JSON query
+        qjs = qp.to_json()
+        k = list(qjs.keys())[0]
+        js[k] = qjs[k]
+    except Exception:
+        js["AND"] = [{"text": q}]
     return JSONResponse(content=js)
 
 
