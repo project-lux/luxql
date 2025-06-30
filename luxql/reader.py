@@ -1,5 +1,4 @@
 from . import LuxAPI, LuxLeaf, LuxBoolean, LuxRelationship
-from SPARQLBurger.SPARQLQueryBuilder import *
 
 
 class JsonReader:
