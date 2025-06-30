@@ -1,14 +1,6 @@
 from . import LuxLeaf, LuxBoolean, LuxRelationship
-from SPARQLBurger.SPARQLQueryBuilder import *
-
+from .SPARQLQueryBuilder import *
 import shlex
-
-try:
-    from SPARQLBurger.SPARQLQueryBuilder import OrderBy
-except Exception:
-    print("You need a version of SPARQLBurger with OrderBy and offset")
-
-from SPARQLBurger.SPARQLQueryBuilder import GroupBy
 
 Pattern = SPARQLGraphPattern  # noqa
 
