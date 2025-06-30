@@ -29,6 +29,13 @@ from boolean_query_parser import BooleanQueryParser
 # * do isPublicDomain and isOnline (in data, plus code)
 #
 
+### Extensions
+#
+# * Allow fields and relationships in the text representation
+# * Allow variables in the queries
+#
+
+
 ### Known qlever bugs impacting us
 #
 # * words with 3 or fewer characters cause a crash in qlever:
