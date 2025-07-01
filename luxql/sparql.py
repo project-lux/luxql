@@ -1,6 +1,7 @@
 from . import LuxLeaf, LuxBoolean, LuxRelationship
 from .SPARQLQueryBuilder import *
 import shlex
+import unicodedata
 
 Pattern = GraphPattern  # noqa
 
@@ -20,6 +21,7 @@ class SparqlTranslator:
             "lux": "https://lux.collections.yale.edu/ns/",
         }
 
+        self.remove_diacritics = True
         self.anywhere_field = "text"
         self.id_field = "id"
         self.name_field = "name"
@@ -392,7 +394,13 @@ class SparqlTranslator:
         # test if only leaf is id:<uri>
         lf = query.children[0]
         if type(lf) is LuxLeaf and lf.field == "id":
-            parent.add_triples([Triple(query.var, pred, f"<{lf.value}>")])
+            if lf.value[0] == "?":
+                # basic test for sparql injection by requiring only a-zA-Z0-9_
+                if not lf.value.replace("_", "").isalnum():
+                    raise ValueError("Invalid variable name")
+                parent.add_triples([Triple(query.var, pred, lf.value)])
+            else:
+                parent.add_triples([Triple(query.var, pred, f"<{lf.value}>")])
         else:
             parent.add_triples([Triple(query.var, pred, query.children[0].var)])
             self.translate_query(query.children[0], parent)
@@ -429,6 +437,9 @@ class SparqlTranslator:
 
             # extract quoted phrases first
             val = query.value.lower()
+            if self.remove_diacritics:
+                val = unicodedata.normalize("NFKD", val).encode("ascii", "ignore").decode("ascii")
+
             try:
                 shwords = shlex.split(val)
             except:
@@ -515,8 +526,12 @@ class SparqlTranslator:
                         top.add_filter(Filter(f'CONTAINS(LCASE({fvar}), "{p}")'))
 
             elif query.field == self.id_field:
-                v = Values([f"<{query.value}>"], query.var)
-                parent.add_value(v)
+                if query.value[0] == "?":
+                    # a variable ... assume the user knows what they're doing...
+                    pass
+                else:
+                    v = Values([f"<{query.value}>"], query.var)
+                    parent.add_value(v)
 
             elif query.field == "identifier":
                 # do exact match on the string

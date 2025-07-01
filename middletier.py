@@ -9,7 +9,6 @@ import os
 import copy
 import aiohttp
 import urllib
-
 import psycopg2
 from psycopg2.extras import RealDictCursor
 
@@ -42,7 +41,8 @@ from boolean_query_parser import BooleanQueryParser
 #   https://github.com/ad-freiburg/qlever/issues/1404
 #   If we could configure prefix size to 1, we could avoid (line 401 in TextIndexBuilder.cpp)
 # * ' - and other characters cause text queries to fail (e.g. bobby o'malley)
-#   see _ord()_ variable name in luxql/sparql.py
+#   _ord()_ variable name doesn't actually match anything :(
+# * textSearch service doesn't work
 #
 
 conn = psycopg2.connect(user="rs2668", dbname="rs2668")
@@ -59,6 +59,9 @@ app.add_middleware(
 )
 
 query_parser = BooleanQueryParser()
+
+if not os.path.exists("hal_cache"):
+    os.makedirs("hal_cache")
 
 
 async def fetch_sparql(spq):
