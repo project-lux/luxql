@@ -8,7 +8,15 @@ Powered by Catalink Ltd (http://catalink.eu)
 """
 
 
-class Prefix:
+class AbstractTerm:
+    def __str__(self):
+        return self.get_text()
+
+    def __repr__(self):
+        return f"{self.__class__.__name__}(...)"
+
+
+class Prefix(AbstractTerm):
     def __init__(self, prefix, namespace):
         """
         The Prefix class constructor.
@@ -30,7 +38,7 @@ class Prefix:
             return ""
 
 
-class Triple:
+class Triple(AbstractTerm):
     def __init__(self, subject, predicate, object):
         """
         The Triple class constructor.
@@ -54,7 +62,7 @@ class Triple:
             return ""
 
 
-class Filter:
+class Filter(AbstractTerm):
     def __init__(self, expression):
         """
         The Filter class constructor.
@@ -73,7 +81,8 @@ class Filter:
             print("Error 1 @ Filter.get_text()")
             return ""
 
-class Having:
+
+class Having(AbstractTerm):
     def __init__(self, expression):
         """
         The Having class constructor.
@@ -92,7 +101,8 @@ class Having:
             print("Error 1 @ Filter.get_text()")
             return ""
 
-class Binding:
+
+class Binding(AbstractTerm):
     def __init__(self, value, variable):
         """
         The Binding class constructor.
@@ -121,7 +131,7 @@ class Binding:
             return ""
 
 
-class Bound:
+class Bound(AbstractTerm):
     def __init__(self, variable):
         """
         The Bound class constructor.
@@ -141,14 +151,14 @@ class Bound:
             else:
                 variable_text = self.variable.get_text()
 
-            return "BOUND (%s)" % (variable_text, )
+            return "BOUND (%s)" % (variable_text,)
 
         except Exception as e:
             print("Error 1 @ Bound.get_text()")
             return ""
 
 
-class IfClause:
+class IfClause(AbstractTerm):
     def __init__(self, condition, true_value, false_value):
         """
         The IfClause class constructor.
@@ -191,7 +201,7 @@ class IfClause:
             return ""
 
 
-class GroupBy:
+class GroupBy(AbstractTerm):
     def __init__(self, variables):
         """
         The GroupBy class constructor.
@@ -205,14 +215,14 @@ class GroupBy:
         :return: <str> The GROUP BY definition text. Returns empty string if an exception was raised.
         """
         try:
-            return "GROUP BY %s" % (" ".join(self.variables), )
+            return "GROUP BY %s" % (" ".join(self.variables),)
 
         except Exception as e:
             print("Error 1 @ GroupBy.get_text()")
             return ""
-        
 
-class OrderBy:
+
+class OrderBy(AbstractTerm):
     def __init__(self, variables, descending=False):
         """
         The OrderBy class constructor.
@@ -222,7 +232,7 @@ class OrderBy:
         self.variables = variables
         self.descending = descending
         self.order = "DESC" if descending else "ASC"
-    
+
     def get_text(self):
         """
         Generates the text for the given ORDER BY expression (e.g. "ORDER BY ?person ?age")
@@ -237,7 +247,7 @@ class OrderBy:
             return ""
 
 
-class Values:
+class Values(AbstractTerm):
     def __init__(self, values, name):
         """
         The Values class constructor.
@@ -257,7 +267,7 @@ class Values:
         """
         try:
             enclosed_values = [in_brackets(value) for value in self.values]
-            return "VALUES %s {%s}" % (self.name, ' '.join(enclosed_values))
+            return "VALUES %s {%s}" % (self.name, " ".join(enclosed_values))
         except Exception as e:
             print("Error 1 @ Values.get_text()")
             return ""
@@ -274,3 +284,23 @@ def in_brackets(uri: str) -> str:
         return "<%s>" % uri
     else:
         return uri
+
+
+class Variable(AbstractTerm):
+    def __init__(self, name):
+        """
+        The Variable class constructor.
+        :param name: <str> The name of the variable.
+        """
+        self.name = name
+
+    def get_text(self):
+        """
+        Generate the text for the given variable.
+        :return: <str> The variable text. Returns empty string if an exception was raised.
+        """
+        try:
+            return "?%s" % self.name
+        except Exception as e:
+            print("Error 1 @ Variable.get_text()")
+            return ""

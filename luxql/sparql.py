@@ -2,7 +2,7 @@ from . import LuxLeaf, LuxBoolean, LuxRelationship
 from .SPARQLQueryBuilder import *
 import shlex
 
-Pattern = SPARQLGraphPattern  # noqa
+Pattern = GraphPattern  # noqa
 
 
 class SparqlTranslator:
@@ -167,7 +167,7 @@ class SparqlTranslator:
         self.counter = 0
         self.scored = []
         self.calculate_scores = False
-        sparql = SPARQLSelectQuery(limit=limit, offset=offset)
+        sparql = SelectQuery(limit=limit, offset=offset)
         for pfx, uri in self.prefixes.items():
             sparql.add_prefix(Prefix(pfx, uri))
         if sort and sort != "relevance":
@@ -217,7 +217,7 @@ class SparqlTranslator:
         self.counter = 0
         self.scored = []
         self.calculate_scores = False
-        sparql = SPARQLSelectQuery()
+        sparql = SelectQuery()
         for pfx, uri in self.prefixes.items():
             sparql.add_prefix(Prefix(pfx, uri))
         sparql.add_variables(["(COUNT(DISTINCT ?uri) AS ?count)"])
@@ -236,7 +236,7 @@ class SparqlTranslator:
         self.counter = 0
         self.scored = []
         self.calculate_scores = False
-        sparql = SPARQLSelectQuery(limit=100)
+        sparql = SelectQuery(limit=100)
         for pfx, uri in self.prefixes.items():
             sparql.add_prefix(Prefix(pfx, uri))
         sparql.add_variables(["?uri", "(COUNT(?uri) AS ?count)"])
@@ -259,12 +259,12 @@ class SparqlTranslator:
         gb = GroupBy(["?facet"])
         ob = OrderBy(["?facetCount"], True)
 
-        sparql = SPARQLSelectQuery(limit=limit, offset=offset)
+        sparql = SelectQuery(limit=limit, offset=offset)
         for pfx, uri in self.prefixes.items():
             sparql.add_prefix(prefix=Prefix(pfx, uri))
         sparql.add_variables(["?facet", "(COUNT(?facet) AS ?facetCount)"])
 
-        inner = SPARQLSelectQuery(distinct=True)
+        inner = SelectQuery(distinct=True)
         inner.add_variables(["?uri"])
         where = Pattern()
         if scope is not None and scope != "any":
@@ -302,16 +302,16 @@ class SparqlTranslator:
         """
         self.counter = 0
 
-        sparql = SPARQLSelectQuery()
+        sparql = SelectQuery()
         for pfx, uri in self.prefixes.items():
             sparql.add_prefix(prefix=Prefix(pfx, uri))
         sparql.add_variables(["(COUNT(?facet) AS ?count)"])
 
-        inner = SPARQLSelectQuery()
+        inner = SelectQuery()
         gb = GroupBy(["?facet"])
         inner.add_variables(["?facet"])
 
-        inner2 = SPARQLSelectQuery(distinct=True)
+        inner2 = SelectQuery(distinct=True)
         inner2.add_variables(["?uri"])
         where = Pattern()
         query.var = "?uri"

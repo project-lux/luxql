@@ -4,14 +4,14 @@ Version 0.1
 Official webpage: http://pmitzias.com/SPARQLBurger
 Documentation: http://pmitzias.com/SPARQLBurger/docs.html
 Created by Panos Mitzias (http://www.pmitzias.com)
-Powered by Catalink Ltd (http://catalink.eu)
+Updates: Rob Sanderson (robert.sanderson@yale.edu)
 """
 
 from .SPARQLSyntaxTerms import *
 
 
-class SPARQLGraphPattern:
-    def __init__(self, optional=False, union=False, not_exists=False):
+class SPARQLGraphPattern(AbstractTerm):
+    def __init__(self, optional=False, union=False, not_exists=False, service=""):
         """
         The SPARQLGraphPattern class constructor.
         :param optional: <bool> Indicates if graph pattern should be marked as OPTIONAL.
@@ -19,10 +19,13 @@ class SPARQLGraphPattern:
         graph pattern
         :param not_exists: <bool> Indicates if graph pattern should have a FILTER NOT EXISTS clause that associates it with the previous.
         graph pattern
+        :param service: <str> Indicates if graph pattern should have a SERVICE clause that associates it with the previous.
+        graph pattern
         """
         self.is_optional = optional
         self.is_union = union
         self.is_not_exists = not_exists
+        self.service_name = service
         if not_exists and (optional or union):
             raise ValueError("FILTER NOT EXISTS cannot be used with OPTIONAL or UNION")
         self.graph = []
@@ -36,9 +39,11 @@ class SPARQLGraphPattern:
         :param triples: <list> A list of SPARQLSyntaxTerms.Triple objects.
         :return: <bool> True if addition succeeded, False if given argument was not a list of Triple objects.
         """
-        if type(triples) is list and all(isinstance(element, Triple) for element in triples):
+        if type(triples) not in [list, tuple, set]:
+            triples = [triples]
+        if all(isinstance(element, Triple) for element in triples):
             self.graph.extend(triples)
-            return True
+            return self
         else:
             return False
 
@@ -50,7 +55,7 @@ class SPARQLGraphPattern:
         """
         if type(graph_pattern) is SPARQLGraphPattern:
             self.graph.append(graph_pattern)
-            return True
+            return self
         else:
             return False
 
@@ -62,7 +67,7 @@ class SPARQLGraphPattern:
         """
         if type(select_query) is SPARQLSelectQuery:
             self.graph.append(select_query)
-            return True
+            return self
         else:
             return False
 
@@ -74,7 +79,7 @@ class SPARQLGraphPattern:
         """
         if type(filter) is Filter:
             self.filters.append(filter)
-            return True
+            return self
         else:
             return False
 
@@ -86,7 +91,7 @@ class SPARQLGraphPattern:
         """
         if type(filter) is Having:
             self.filters.append(filter)
-            return True
+            return self
         else:
             return False
 
@@ -98,7 +103,7 @@ class SPARQLGraphPattern:
         """
         if type(binding) is Binding:
             self.bindings.append(binding)
-            return True
+            return self
         else:
             return False
 
@@ -110,7 +115,7 @@ class SPARQLGraphPattern:
         """
         if isinstance(value, Values):
             self.values.append(value)
-            return True
+            return self
         else:
             return False
 
@@ -132,6 +137,8 @@ class SPARQLGraphPattern:
                 query_text = "%sUNION\n%s{\n" % (outer_indentation, outer_indentation)
             elif self.is_not_exists:
                 query_text = "%sFILTER NOT EXISTS {\n" % (outer_indentation,)
+            elif self.service_name:
+                query_text = "%sSERVICE %s: {\n" % (outer_indentation, self.service_name)
             else:
                 query_text = "%s{\n" % (outer_indentation,)
 
@@ -184,7 +191,7 @@ class SPARQLGraphPattern:
             return ""
 
 
-class SPARQLQuery:
+class SPARQLQuery(AbstractTerm):
     def __init__(self, include_popular_prefixes=False):
         """
         The SPARQLQuery class constructor.
@@ -196,6 +203,15 @@ class SPARQLQuery:
         if include_popular_prefixes:
             self.add_popular_prefixes()
 
+    def add_prefixes(self, prefixes):
+        try:
+            for prefix in prefixes:
+                self.add_prefix(prefix)
+        except Exception as e:
+            print("Error 2 @ SPARQLQuery.add_prefixes()", e)
+            raise
+        return self
+
     def add_prefix(self, prefix):
         """
         Adds a PREFIX expression to the query.
@@ -204,7 +220,7 @@ class SPARQLQuery:
         """
         if type(prefix) is Prefix:
             self.prefixes.append(prefix)
-            return True
+            return self
         else:
             return False
 
@@ -218,8 +234,8 @@ class SPARQLQuery:
             "foaf": "http://xmlns.com/foaf/0.1/",
         }
 
-        for prefix in popular_prefixes:
-            self.add_prefix(prefix=Prefix(prefix=prefix, namespace=popular_prefixes[prefix]))
+        for p, ns in popular_prefixes.items():
+            self.add_prefix(prefix=Prefix(p, ns))
 
     def set_where_pattern(self, graph_pattern):
         """
@@ -229,7 +245,7 @@ class SPARQLQuery:
         """
         if type(graph_pattern) is SPARQLGraphPattern:
             self.where = graph_pattern
-            return True
+            return self
         else:
             return False
 
@@ -258,9 +274,12 @@ class SPARQLSelectQuery(SPARQLQuery):
         :param variables: <list> A list of variables as strings.
         :return: <bool> True if addition succeeded, False if given argument was not a list of strings.
         """
-        if type(variables) is list and all(isinstance(element, str) for element in variables):
+        if type(variables) is str:
+            variables = [variables]
+
+        if all(isinstance(element, str) for element in variables):
             self.variables.extend(variables)
-            return True
+            return self
         else:
             return False
 
@@ -272,7 +291,7 @@ class SPARQLSelectQuery(SPARQLQuery):
         """
         if type(group) is GroupBy:
             self.group_by.append(group)
-            return True
+            return self
         else:
             return False
 
@@ -284,7 +303,7 @@ class SPARQLSelectQuery(SPARQLQuery):
         """
         if type(order_by) is OrderBy:
             self.order_by.append(order_by)
-            return True
+            return self
         else:
             return False
 
@@ -369,7 +388,7 @@ class SPARQLUpdateQuery(SPARQLQuery):
         """
         if type(graph_pattern) is SPARQLGraphPattern:
             self.delete = graph_pattern
-            return True
+            return self
         else:
             return False
 
@@ -381,7 +400,7 @@ class SPARQLUpdateQuery(SPARQLQuery):
         """
         if type(graph_pattern) is SPARQLGraphPattern:
             self.insert = graph_pattern
-            return True
+            return self
         else:
             return False
 
@@ -432,3 +451,8 @@ class SPARQLUpdateQuery(SPARQLQuery):
         except Exception as e:
             print("Error 1 @ SPARQLUpdateQuery.get_text()", e)
             return ""
+
+
+GraphPattern = SPARQLGraphPattern
+SelectQuery = SPARQLSelectQuery
+UpdateQuery = SPARQLUpdateQuery
