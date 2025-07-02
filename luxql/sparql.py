@@ -2,6 +2,7 @@ from . import LuxLeaf, LuxBoolean, LuxRelationship
 from .SPARQLQueryBuilder import *
 import shlex
 import unicodedata
+from string import whitespace, punctuation
 
 Pattern = GraphPattern  # noqa
 
@@ -14,14 +15,14 @@ class SparqlTranslator:
         self.prefixes = {
             "rdf": "http://www.w3.org/1999/02/22-rdf-syntax-ns#",
             "xsd": "http://www.w3.org/2001/XMLSchema#",
-            # "dc": "http://purl.org/dc/elements/1.1/",
-            # "dct": "http://purl.org/dc/terms/",
-            # "rdfs": "http://www.w3.org/2000/01/rdf-schema#",
             "la": "https://linked.art/ns/terms/",
             "lux": "https://lux.collections.yale.edu/ns/",
         }
 
-        self.remove_diacritics = True
+        self.remove_diacritics = False
+        self.min_word_chars = 4
+        self.padding_char = "Þ"
+
         self.anywhere_field = "text"
         self.id_field = "id"
         self.name_field = "name"
@@ -194,10 +195,6 @@ class SparqlTranslator:
             for x in self.scored:
                 bs.append(f"COALESCE(?score_{x}, 0)")
             if bs:
-                # ?uri lux:recordText ?rectxt .
-                # BIND (COALESCE(?score_0, 0) / STRLEN(?rectxt) AS ?score)
-                # where.add_triples(Triple("?uri", "lux:recordText", "?rectxt"))
-                # This ranks archive components too highly
                 where.add_binding(Binding(" + ".join(bs), "?score"))
                 ob = OrderBy(["?sscore"], True)
                 sparql.add_order_by(ob)
@@ -434,12 +431,10 @@ class SparqlTranslator:
 
         if typ == "text":
             # extract words
-
             # extract quoted phrases first
             val = query.value.lower()
             if self.remove_diacritics:
                 val = unicodedata.normalize("NFKD", val).encode("ascii", "ignore").decode("ascii")
-
             try:
                 shwords = shlex.split(val)
             except:
@@ -447,12 +442,14 @@ class SparqlTranslator:
             phrases = [w for w in shwords if " " in w]
             words = val.replace('"', "").split()
 
+            if self.min_word_chars > 1:
+                words = [
+                    word.strip(whitespace + punctuation).ljust(self.min_word_chars, self.padding_char)
+                    for word in words
+                ]
+
             # Test if we should make them prefixes or phrases
             # prefix = word*
-
-            # FIXME:
-            # invalid characters in sparql variable names are replaced with "_{ord(chr)}_"
-            # eg o'malley --> o_39_malley --> ?ql_score_word_txt110_o_39_malley
 
             if query.field == self.name_field:
                 value = " ".join(words)
@@ -474,7 +471,6 @@ class SparqlTranslator:
 
             elif query.field == self.anywhere_field:
                 # If a phrase then filter() the result
-
                 top = Pattern()
                 wx = 0
 
@@ -520,7 +516,7 @@ class SparqlTranslator:
                     self.scored.append(self.counter)
                 if phrases:
                     fvar = f"?field2{self.counter}0"
-                    nvar = f"?field1{self.counter}0"
+                    # nvar = f"?field1{self.counter}0"
                     ### How to also test OR in name text?
                     for p in phrases:
                         top.add_filter(Filter(f'CONTAINS(LCASE({fvar}), "{p}")'))

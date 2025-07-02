@@ -393,6 +393,7 @@ async def do_translate(scope, q={}):
         js[k] = qjs[k]
     except Exception:
         js["AND"] = [{"text": q}]
+    print(js)
     return JSONResponse(content=js)
 
 

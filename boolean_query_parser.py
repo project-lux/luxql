@@ -76,7 +76,7 @@ def t_QUOTED_STRING(t):
 
 
 def t_WORD(t):
-    r"[a-zA-Z0-9_.]+"
+    r"\w+"
     return t
 
 
