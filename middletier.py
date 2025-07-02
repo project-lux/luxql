@@ -9,6 +9,7 @@ import os
 import copy
 import aiohttp
 import urllib
+
 import psycopg2
 from psycopg2.extras import RealDictCursor
 
@@ -30,20 +31,28 @@ from boolean_query_parser import BooleanQueryParser
 
 ### Extensions
 #
-# * Allow fields and relationships in the text representation
-# * Allow variables in the queries
+# * Allow fields and relationships in the text representation (not done)
+# * Allow variables in the queries (done)
 #
 
 
-### Known qlever bugs impacting us
+### Worked around bugs
 #
 # * words with 3 or fewer characters cause a crash in qlever:
 #   https://github.com/ad-freiburg/qlever/issues/1404
 #   If we could configure prefix size to 1, we could avoid (line 401 in TextIndexBuilder.cpp)
+#   Workaround: pad the words with Thorn
+#   Remaining: some words still don't work  (e.g. j m w turner)
+#
 # * ' - and other characters cause text queries to fail (e.g. bobby o'malley)
 #   _ord()_ variable name doesn't actually match anything :(
-# * textSearch service doesn't work
+#   Workaround: Use fixed version of the code :)
+#   Remaining: some characters still don't work
 #
+# * textSearch service doesn't work
+#   Workaround: Don't use textSearch until it's fixed
+#
+
 
 conn = psycopg2.connect(user="rs2668", dbname="rs2668")
 table = "merged_data_cache"
