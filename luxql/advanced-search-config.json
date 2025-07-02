@@ -231,6 +231,13 @@
         "allowedOptionsName": "keyword",
         "defaultOptionsName": "keyword"
       },
+      "broaderPlus": {
+        "label": "Broader Concepts (transitive)",
+        "helpText": "Search for ALL Concept terms that are hierarchically narrower than the specified broader term.",
+        "relation": "concept",
+        "allowedOptionsName": "keyword",
+        "defaultOptionsName": "keyword"
+      },
       "classification": {
         "label": "Categorized As",
         "helpText": "Search for Concept and Type terms that are categorized with the specified Concept or Type terms.",
@@ -696,6 +703,13 @@
         "allowedOptionsName": "keyword",
         "defaultOptionsName": "keyword"
       },
+      "partOfPlus": {
+        "label": "Part of (transitive)",
+        "helpText": "Search for ALL Places that are within the specified Place.",
+        "relation": "place",
+        "allowedOptionsName": "keyword",
+        "defaultOptionsName": "keyword"
+      },
       "activePlaceOfAgent": {
         "label": "Place of Activity of",
         "helpText": "Search for Places where the specified People & Groups were professionally active.",
@@ -1130,12 +1144,8 @@
       ]
     },
     "exact": {
-      "allowed": [
-        "exact"
-      ],
-      "default": [
-        "exact"
-      ]
+      "allowed": ["exact"],
+      "default": ["exact"]
     }
   },
   "stopWords": [

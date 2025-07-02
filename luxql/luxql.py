@@ -43,22 +43,25 @@ class LuxConfig(object):
     def __init__(self, config=config):
         self.module_config = config
         url = config["lux_config"]
-        try:
-            resp = requests.get(url, timeout=10)
-            if resp.status_code == 200:
-                self.lux_config = resp.json()
-                # recache it
-                fn = os.path.join(os.path.dirname(__file__), "advanced-search-config.json")
-                with open(fn, "w") as fh:
-                    fh.write(json.dumps(self.lux_config, indent=2))
-            else:
-                raise ValueError(f"Couldn't retrieve configuration from {url}")
-        except Exception:
-            # read from disk
-            fn = os.path.join(os.path.dirname(__file__), "advanced-search-config.json")
-            with open(fn) as fh:
-                js = json.load(fh)
-            self.lux_config = js
+
+        # read from disk
+        fn = os.path.join(os.path.dirname(__file__), "advanced-search-config.json")
+        with open(fn) as fh:
+            js = json.load(fh)
+        self.lux_config = js
+
+        # try:
+        #    resp = requests.get(url, timeout=10)
+        #    if resp.status_code == 200:
+        #        self.lux_config = resp.json()
+        #        # recache it
+        #        fn = os.path.join(os.path.dirname(__file__), "advanced-search-config.json")
+        #        with open(fn, "w") as fh:
+        #            fh.write(json.dumps(self.lux_config, indent=2))
+        #    else:
+        #        raise ValueError(f"Couldn't retrieve configuration from {url}")
+        # except Exception:
+        #    raise
 
         self.scopes = list(self.lux_config["terms"].keys())
 

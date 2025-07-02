@@ -79,6 +79,7 @@ class SparqlTranslator:
             },
             "concept": {
                 "broader": "broader",
+                "broaderPlus": "broader+",
                 "classificationOfSet": "^setClassification",
                 "classificationOfConcept": "^conceptClassification",
                 "classificationOfEvent": "^eventClassification",
@@ -109,6 +110,7 @@ class SparqlTranslator:
             },
             "place": {
                 "partOf": "placePartOf",
+                "partOfPlus": "placePartOf+",
                 "activePlaceOfAgent": "^placeOfAgentActivity",
                 "startPlaceOfAgent": "^placeOfAgentBeginning",
                 "producedHere": "^placeOfItemBeginning",
