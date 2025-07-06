@@ -75,8 +75,9 @@ def t_QUOTED_STRING(t):
     return t
 
 
+# This should be updated when there are more characters possible in qlever
 def t_WORD(t):
-    r"\w+"
+    r"[\w._0-9]+"
     return t
 
 

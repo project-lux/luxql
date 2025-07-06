@@ -35,27 +35,28 @@ q = rdr.read(
 #    {"AND": [{"OR": [{"name": "John"}, {"name": "Jane"}]}, {"OR": [{"name": "Trumbull"}, {"name": "West"}]}]}, "agent"
 # )
 
-# q = rdr.read({"text": "froissart robinson"}, "work")
+q = rdr.read({"text": "froissart robinson"}, "work")
 
-q = rdr.read(
-    {
-        "AND": [
-            {"startDate": "1850-01-01T00:00:00.000Z", "_comp": ">="},
-            {"startDate": "1900-01-01T00:00:00.000Z", "_comp": "<="},
-        ]
-    },
-    "agent",
-)
+# q = rdr.read(
+#    {
+#        "AND": [
+#            {"startDate": "1850-01-01T00:00:00.000Z", "_comp": ">="},
+#            {"startDate": "1900-01-01T00:00:00.000Z", "_comp": "<="},
+#        ]
+#    },
+#    "agent",
+# )
 
-q = rdr.read({"height": "100", "_comp": ">="}, "item")
-q = rdr.read({"recordType": "HumanMadeObject"}, "item")
-q = rdr.read({"AND": [{"hasDigitalImage": 1}]}, "item")
+# q = rdr.read({"height": "100", "_comp": ">="}, "item")
+# q = rdr.read({"recordType": "HumanMadeObject"}, "item")
+# q = rdr.read({"AND": [{"hasDigitalImage": 1}]}, "item")
 q = rdr.read({"text": "andy warhol"}, "agent")
 
 
-spq = st.translate_search(q)
+spq = st.translate_search(q, sort="relevance")
 # spq = st.translate_facet(q, "lux:workLanguage")
 qt = spq.get_text()
+print(qt)
 endpoint = SPARQLWrapper("http://localhost:7010")
 endpoint.setReturnFormat(JSON)
 endpoint.setQuery(qt)

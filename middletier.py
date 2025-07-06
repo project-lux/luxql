@@ -54,6 +54,62 @@ from boolean_query_parser import BooleanQueryParser
 #
 
 
+geo_search = """
+PREFIX lux: <https://lux.collections.yale.edu/ns/>
+PREFIX ogc: <http://www.opengis.net/rdf#>
+PREFIX osmrel: <https://www.openstreetmap.org/relation/>
+PREFIX geo: <http://www.opengis.net/ont/geosparql#>
+PREFIX osmkey: <https://www.openstreetmap.org/wiki/Key:>
+PREFIX geof: <http://www.opengis.net/def/function/geosparql/>
+PREFIX qlss: <https://qlever.cs.uni-freiburg.de/spatialSearch/>
+
+SELECT ?where ?coords WHERE {
+  BIND( "POINT(174.763336 -36.848461)"^^geo:wktLiteral AS ?akl )
+
+  SERVICE qlss: {
+    _:config  qlss:algorithm qlss:s2 ;
+              qlss:left ?akl ;
+              qlss:right ?coords ;
+              qlss:numNearestNeighbors 20 ;
+              qlss:maxDistance 5000 ;
+              qlss:bindDistance ?dist_left_right ;
+              qlss:payload ?where  .
+    {
+      ?where lux:placeDefinedBy ?coords .
+    }
+  }
+}
+"""
+
+geo_search2 = """
+PREFIX lux: <https://lux.collections.yale.edu/ns/>
+PREFIX ogc: <http://www.opengis.net/rdf#>
+PREFIX osmrel: <https://www.openstreetmap.org/relation/>
+PREFIX geo: <http://www.opengis.net/ont/geosparql#>
+PREFIX osmkey: <https://www.openstreetmap.org/wiki/Key:>
+PREFIX geof: <http://www.opengis.net/def/function/geosparql/>
+PREFIX qlss: <https://qlever.cs.uni-freiburg.de/spatialSearch/>
+SELECT ?where ?centroid WHERE {
+  BIND( "POINT (-1.5 53.608273)"^^geo:wktLiteral AS ?akl )
+  SERVICE qlss: {
+    _:config qlss:algorithm qlss:s2 ;
+              qlss:left ?akl ;
+              qlss:right ?centroid ;
+              qlss:numNearestNeighbors 10000 ;
+              qlss:maxDistance 70000 ;
+              qlss:bindDistance ?dist_left_right ;
+              qlss:payload ?where, ?coords .
+    {
+      # Any subquery, that selects ?right_geometry, ?payloadA and ?payloadB
+?where lux:placeDefinedBy ?coords .
+BIND(geof:centroid(?coords) AS ?centroid)
+
+    }
+  }
+}
+"""
+
+
 conn = psycopg2.connect(user="rs2668", dbname="rs2668")
 table = "merged_data_cache"
 
@@ -89,13 +145,13 @@ async def fetch_sparql(spq):
                 if "results" in ret:
                     results = [r for r in ret["results"]["bindings"]]
                 else:
-                    print(q)
-                    print(json.dumps(ret, indent=2))
+                    # print("Broke...")
+                    # print(q)
+                    # print(json.dumps(ret, indent=2))
                     results = []
     except Exception as e:
         print(q)
         print(e)
-        raise
         results = []
     return results
 
@@ -120,7 +176,7 @@ async def do_search(scope, q={}, page=1, pageLength=20, sort=""):
         # <set-uri> lux:setMemberOfSet ?parent .
         # ?parent lux:setClassification <https://lux.collections.yale.edu/data/concept/0c8e015e-8ead-43e7-ad8c-c06c08448019>
 
-        print(q)
+        # print(q)
         return JSONResponse({})
 
     page = int(page)
@@ -142,9 +198,8 @@ async def do_search(scope, q={}, page=1, pageLength=20, sort=""):
     q = q.replace("http://localhost:5001/", "https://lux.collections.yale.edu/")
     jq = json.loads(q)
     parsed = rdr.read(jq, scope)
-    spq = st.translate_search(parsed, limit=pageLength, offset=offset, sort=pred, order=ascdesc)
+    spq = st.translate_search(parsed, scope=scope, limit=pageLength, offset=offset, sort=pred, order=ascdesc)
     qt = spq.get_text()
-    print(qt)
     res = await fetch_sparql(qt)
 
     spq2 = st.translate_search_count(parsed)
@@ -197,7 +252,7 @@ async def do_search_estimate(scope, q={}, page=1):
         parsed = rdr.read(jq, scope)
     except ValueError as e:
         return JSONResponse(content=js)
-    spq2 = st.translate_search_count(parsed)
+    spq2 = st.translate_search_count(parsed, scope=scope)
     qt2 = spq2.get_text()
     ttl_res = await fetch_sparql(qt2)
     ttl = ttl_res[0]["count"]["value"]
@@ -213,7 +268,7 @@ async def do_search_match(q={}):
     q = q.replace("http://localhost:5001/", "https://lux.collections.yale.edu/")
     jq = json.loads(q)
     parsed = rdr.read(jq, scope)
-    spq2 = st.translate_search_count(parsed)
+    spq2 = st.translate_search_count(parsed, scope=scope)
     qt2 = spq2.get_text()
     ttl_res = await fetch_sparql(qt2)
     ttl = ttl_res[0]["count"]["value"]
@@ -270,8 +325,11 @@ async def do_facet(scope, q={}, name="", page=1):
     if res:
         spq2 = st.translate_facet_count(parsed, pred)
         res2 = await fetch_sparql(spq2)
-        ttl = int(res2[0]["count"]["value"])
-        js["partOf"]["totalItems"] = ttl
+        if res2 and "count" in res2[0]:
+            ttl = int(res2[0]["count"]["value"])
+            js["partOf"]["totalItems"] = ttl
+        else:
+            ttl = 0
 
     for r in res:
         # Need to know type of facet (per datatype below)
@@ -402,7 +460,6 @@ async def do_translate(scope, q={}):
         js[k] = qjs[k]
     except Exception:
         js["AND"] = [{"text": q}]
-    print(js)
     return JSONResponse(content=js)
 
 
