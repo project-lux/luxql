@@ -272,7 +272,7 @@ class LuxLeaf(LuxQuery):
                 )
             # Test there's a comparitor
             if not self.comparitor:
-                raise ValueError(f"Dates require a comparitor")
+                raise ValueError("Dates require a comparitor")
             elif self.comparitor not in self.config.module_config["comparitors"]:
                 raise ValueError(f"{self.comparitor} is not a valid comparitor")
         elif info["relation"] == "float":
@@ -280,9 +280,9 @@ class LuxLeaf(LuxQuery):
             try:
                 f = float(self.value)
             except ValueError:
-                raise ValueError(f"Numbers must be expressed using only numbers and .")
+                raise ValueError("Numbers must be expressed using only numbers and .")
             if not self.comparitor:
-                raise ValueError(f"Numbers require a comparitor")
+                raise ValueError("Numbers require a comparitor")
             elif not self.comparitor in self.config.module_config["comparitors"]:
                 raise ValueError(f"{self.comparitor} is not a valid comparitor")
         elif info["relation"] == "boolean":
