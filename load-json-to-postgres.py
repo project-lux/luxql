@@ -59,11 +59,20 @@ if "--init" in sys.argv:
 my_slice = int(sys.argv[1])
 max_slice = 12
 files = [x for x in os.listdir(".") if x.endswith(".jsonl.gz")]
+use_gzip = True
+if not files:
+    files = [x for x in os.listdir(".") if x.endswith(".jsonl")]
+    use_gzip = False
 files.sort()
 
 for f in files[my_slice::max_slice]:
     print(f)
-    with gzip.open(f) as fh:
+    if use_gzip:
+        opener = gzip.open
+    else:
+        opener = open
+
+    with opener(f) as fh:
         x = 0
         for line in fh:
             cursor = make_cursor()
