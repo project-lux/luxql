@@ -404,7 +404,7 @@ class SparqlTranslator:
         if type(lf) is LuxLeaf and lf.field == "id":
             if lf.value[0] == "?":
                 # basic test for sparql injection by requiring only a-zA-Z0-9_
-                if not lf.value.replace("_", "").isalnum():
+                if not lf.value[1:].replace("_", "").isalnum():
                     raise ValueError("Invalid variable name")
                 parent.add_triples([Triple(query.var, pred, lf.value)])
             else:
@@ -460,6 +460,14 @@ class SparqlTranslator:
         elif typ == "date":
             # do date query per qlever
             dt = query.value
+
+            # make sure date is in a valid format
+            if not ":" in dt:
+                dt += "T00:00:00Z"
+
+
+
+
             comp = query.comparitor
             field = query.field
             # botb, eote

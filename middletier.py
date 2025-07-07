@@ -200,6 +200,7 @@ async def do_search(scope, q={}, page=1, pageLength=20, sort=""):
     parsed = rdr.read(jq, scope)
     spq = st.translate_search(parsed, scope=scope, limit=pageLength, offset=offset, sort=pred, order=ascdesc)
     qt = spq.get_text()
+    print(qt)
     res = await fetch_sparql(qt)
 
     spq2 = st.translate_search_count(parsed)
