@@ -25,7 +25,6 @@ def make_table():
     with make_cursor() as cursor:
         try:
             cursor.execute(qry)
-            cursor.execute(idxQry)
             conn.commit()
         except Exception as e:
             print(f"Make table failed: {e}")
