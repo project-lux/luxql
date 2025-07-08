@@ -535,7 +535,6 @@ async def do_get_record(scope, identifier, profile=None):
         js = row["data"]
 
         if not profile:
-            jstr = json.dumps(js)
             links = {
                 "curies": [
                     {"name": "lux", "href": f"{MY_URI}api/rels/{{rel}}", "templated": True},
@@ -546,6 +545,7 @@ async def do_get_record(scope, identifier, profile=None):
             # Calculate _links here
             more_links = await do_hal_links(scope, identifier)
             links.update(more_links)
+            jstr = json.dumps(js)
             jstr = jstr.replace(f"{DATA_URI}data/", f"{MY_URI}data/")
             js2 = json.loads(jstr)
             js2["_links"] = links
@@ -562,6 +562,9 @@ async def do_get_record(scope, identifier, profile=None):
                 for nm in js["identified_by"]:
                     if nm["type"] == "Identifier":
                         js2["identified_by"].append(nm)
+            jstr = json.dumps(js2)
+            jstr = jstr.replace(f"{DATA_URI}data/", f"{MY_URI}data/")
+            js2 = json.loads(jstr)
 
         return JSONResponse(content=js2)
     else:
