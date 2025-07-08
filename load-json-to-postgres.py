@@ -1,10 +1,9 @@
 import os
 import sys
 import gzip
+
 import ujson as json
 import psycopg2
-import logging
-import time
 from psycopg2.extras import RealDictCursor, Json
 
 conn = psycopg2.connect(user="ubuntu", dbname="ubuntu")
@@ -12,9 +11,7 @@ table = "lux_data_cache"
 
 
 def make_cursor():
-    # name = f"server_cursor_{table}_{time.time()}".replace(".", "_")
-    cursor = conn.cursor(cursor_factory=RealDictCursor)
-    return cursor
+    return conn.cursor(cursor_factory=RealDictCursor)
 
 
 def make_table():

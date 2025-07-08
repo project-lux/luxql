@@ -59,6 +59,26 @@ PAGE_LENGTH = args.pageLength
 DATA_URI = args.data_uri
 PG_TABLE = args.table
 
+ENGLISH = "http://vocab.getty.edu/aat/300388277"
+PRIMARY = "http://vocab.getty.edu/aat/300404670"
+RESULTS_FIELDS = [
+    "produced_by",
+    "created_by",
+    "encountered_by",
+    "classified_as",
+    "member_of",
+    "language",
+    "referred_to_by",
+    "representation",
+    "part_of",
+    "broader",
+    "defined_by",
+    "took_place_at",
+    "timespan",
+    "carried_out_by",
+]
+
+
 conn = psycopg2.connect(user=args.user, dbname=args.db)
 
 ### To do
@@ -488,10 +508,23 @@ async def do_hal_links(scope, identifier):
     return links
 
 
+def get_primary_name(names):
+    candidates = []
+    for name in names:
+        if name["type"] == "Name":
+            langs = [x.get("equivalent", {"id": None})["id"] for x in name.get("language", [])]
+            cxns = [x.get("equivalent", {"id": None})["id"] for x in name.get("classified_as", [])]
+            if ENGLISH in langs and PRIMARY in cxns:
+                return name
+            elif PRIMARY in cxns:
+                candidates.append(name)
+    candidates.sort(key=lambda x: len(x.get("language", [])), reverse=True)
+    return candidates[0] if candidates else None
+
+
 @app.get("/data/{scope}/{identifier}")
 async def do_get_record(scope, identifier, profile=None):
     # Check postgres cache
-
     cursor = conn.cursor(cursor_factory=RealDictCursor)
     qry = f"SELECT * FROM {PG_TABLE} WHERE identifier = %s"
     params = (identifier,)
@@ -499,24 +532,36 @@ async def do_get_record(scope, identifier, profile=None):
     row = cursor.fetchone()
     if row:
         js = row["data"]
-        jstr = json.dumps(js)
 
-        links = {
-            "curies": [
-                {"name": "lux", "href": f"{MY_URI}api/rels/{{rel}}", "templated": True},
-                {"name": "la", "href": "https://linked.art/api/1.0/rels/{{rel}}", "templated": True},
-            ],
-            "self": {"href": f"{MY_URI}data/{scope}/{identifier}"},
-        }
         if not profile:
+            jstr = json.dumps(js)
+            links = {
+                "curies": [
+                    {"name": "lux", "href": f"{MY_URI}api/rels/{{rel}}", "templated": True},
+                    {"name": "la", "href": "https://linked.art/api/1.0/rels/{{rel}}", "templated": True},
+                ],
+                "self": {"href": f"{MY_URI}data/{scope}/{identifier}"},
+            }
             # Calculate _links here
             more_links = await do_hal_links(scope, identifier)
             links.update(more_links)
+            jstr = jstr.replace(f"{DATA_URI}data/", f"{MY_URI}data/")
+            js2 = json.loads(jstr)
+            js2["_links"] = links
+        else:
+            js2 = {}
+            js2["id"] = js["id"]
+            js2["type"] = js["type"]
+            js2["identified_by"] = [get_primary_name(js["identified_by"])]
 
-        jstr = jstr.replace(f"{DATA_URI}data/", f"{MY_URI}data/")
-        js2 = json.loads(jstr)
+            if profile == "results":
+                for fld in RESULTS_FIELDS:
+                    if fld in js:
+                        js2 = js[fld]
+                for nm in js["identified_by"]:
+                    if nm["type"] == "Identifier":
+                        js2["identified_by"].append(nm)
 
-        js2["_links"] = links
         return JSONResponse(content=js2)
     else:
         return JSONResponse(content={}, status_code=404)
