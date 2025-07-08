@@ -280,7 +280,7 @@ class SparqlTranslator:
         inner.add_variables(["?uri"])
         where = Pattern()
         if scope is not None and scope != "any":
-            t = Triple("?uri", "a", f"lux:{scope.Title()}")
+            t = Triple("?uri", "a", f"lux:{scope.title()}")
             where.add_triples([t])
         query.var = "?uri"
         self.translate_query(query, where)
@@ -328,7 +328,7 @@ class SparqlTranslator:
         where = Pattern()
 
         if scope is not None and scope != "any":
-            t = Triple("?uri", "a", f"lux:{scope.Title()}")
+            t = Triple("?uri", "a", f"lux:{scope.title()}")
             where.add_triples([t])
         query.var = "?uri"
         self.translate_query(query, where)
