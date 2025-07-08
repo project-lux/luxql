@@ -465,9 +465,6 @@ class SparqlTranslator:
             if not ":" in dt:
                 dt += "T00:00:00Z"
 
-
-
-
             comp = query.comparitor
             field = query.field
             # botb, eote
@@ -609,7 +606,7 @@ COALESCE(?score_text_{self.counter}{wx}, 0) * {self.text_weight}",
             binds = []
             for x in range(wx):
                 binds.append(f"COALESCE(?score_{self.counter}{x}, 0)")
-            parent.add_binding(Binding(" + ".join(binds), f"?score_{self.counter}"))
+            # parent.add_binding(Binding(" + ".join(binds), f"?score_{self.counter}"))
             self.scored.append(self.counter)
         if phrases:
             fvar = f"?field2{self.counter}0"
