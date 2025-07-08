@@ -558,7 +558,7 @@ async def do_get_record(scope, identifier, profile=None):
             if profile == "results":
                 for fld in RESULTS_FIELDS:
                     if fld in js:
-                        js2 = js[fld]
+                        js2[fld] = js[fld]
                 for nm in js["identified_by"]:
                     if nm["type"] == "Identifier":
                         js2["identified_by"].append(nm)
