@@ -57,7 +57,7 @@ MY_URI = f"{args.protocol}://{args.host}:{args.port}{args.path}"
 SPARQL_ENDPOINT = args.sparql
 PAGE_LENGTH = args.pageLength
 DATA_URI = args.data_uri
-
+PG_TABLE = args.table
 
 conn = psycopg2.connect(user=args.user, dbname=args.db)
 
@@ -493,7 +493,7 @@ async def do_get_record(scope, identifier, profile=None):
     # Check postgres cache
 
     cursor = conn.cursor(cursor_factory=RealDictCursor)
-    qry = f"SELECT * FROM {table} WHERE identifier = %s"
+    qry = f"SELECT * FROM {PG_TABLE} WHERE identifier = %s"
     params = (identifier,)
     cursor.execute(qry, params)
     row = cursor.fetchone()
