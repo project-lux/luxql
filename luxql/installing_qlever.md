@@ -8,6 +8,8 @@ apt-get install -y build-essential cmake libicu-dev tzdata pkg-config uuid-runti
 
 apt-get install -y postgresql postgresql-contrib
 
+apt-get install -y npm
+
 ### For Ubuntu 22:
 apt-get install -y libboost1.81-dev libboost-program-options1.81-dev libboost-iostreams1.81-dev libboost-url1.81-dev
 
@@ -39,8 +41,11 @@ exit
 ### Load the data
 
 // scp the data from a machine that has it
+// make sure to copy the compressed files, otherwise we run out of disk on 1Tb
 
 
+nohup python ./load-json-to-postgres.py 0 > 0_log.txt &
+// out to 11 > 11_log.txt 
 
 
 
@@ -58,21 +63,28 @@ cp qlever/build/IndexBuilderMain qlever/build/ServerMain qlever/build/PrintIndex
 
 // scp the triples from a machine that has them
 
+
+
+### Building Indexes
+
+cd indexes
+echo '{ "ascii-prefixes-only": true, "num-triples-per-batch": 500000 }' > lux.settings.json
+
 ulimit -Sn 500000 && zcat lux_*.nt.gz | ../code/bin/IndexBuilderMain -i lux -s lux.settings.json -F nt -f - -p true --text-words-from-literals --stxxl-memory 60G
+(wait)
 
 
+### Installing Qlever UI
 
+git clone https://github.com/ad-freiburg/qlever-ui.git
+cd qlever-ui
+npm install
+npm run build
 
-
-## Building Indexes
-
-cd ..
-git clone https://github.com/project-lux/luxql.git
-
-
-
-
-
+pip install -r requirements.txt
+python manage.py makemigrations --merge && python manage.py migrate
+./manage.py createsuperuser
+nohup ./manage.py runserver 0.0.0.0:8176 &
 
 
 ## Set up middletier
@@ -80,4 +92,9 @@ git clone https://github.com/project-lux/luxql.git
 cd /data-io2
 python3 -m venv ENV
 source ENV/bin/activate
-pip install -r luxql/requirements.txt
+
+pip install ujson psycopg2-binary ply fastapi requests uvicorn aiohttp
+
+// edit to look at the right psql table
+// edit at end to change the port
+// todo: make these command line variables
