@@ -218,7 +218,7 @@ class SparqlTranslator:
     def translate_search_count(self, query, scope=None):
         # Implement translation logic here
         self.counter = 0
-        self.calculate_scores = False
+        self.calculate_scores = True
 
         sparql = SelectQuery()
         sparql.add_variables(["?uri"])
@@ -246,7 +246,7 @@ class SparqlTranslator:
     def translate_search_related(self, query, scope=None):
         self.counter = 0
         self.scored = []
-        self.calculate_scores = False
+        self.calculate_scores = True
         sparql = SelectQuery(limit=100)
         for pfx, uri in self.prefixes.items():
             sparql.add_prefix(Prefix(pfx, uri))
@@ -266,6 +266,7 @@ class SparqlTranslator:
         return sparql
 
     def translate_facet(self, query, facet, scope=None, limit=25, offset=0):
+        self.calculate_scores = True
         self.counter = 0
         gb = GroupBy(["?facet"])
         ob = OrderBy(["?facetCount"], True)
@@ -312,7 +313,7 @@ class SparqlTranslator:
         }
         """
         self.counter = 0
-
+        self.calculate_scores = True
         sparql = SelectQuery()
         for pfx, uri in self.prefixes.items():
             sparql.add_prefix(prefix=Prefix(pfx, uri))
