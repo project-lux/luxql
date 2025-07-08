@@ -321,10 +321,10 @@ async def do_facet(scope, q={}, name="", page=1):
         pred = f"lux:{pred}"
     # print(f"{name} {pname} {pname2} {pred}")
 
-    spq = st.translate_facet(parsed, pred, scope=scope)
+    spq = st.translate_facet(parsed, pred)
     res = await fetch_sparql(spq)
     if res:
-        spq2 = st.translate_facet_count(parsed, pred, scope=scope)
+        spq2 = st.translate_facet_count(parsed, pred)
         res2 = await fetch_sparql(spq2)
         if res2 and "count" in res2[0]:
             ttl = int(res2[0]["count"]["value"])
