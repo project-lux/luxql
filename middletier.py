@@ -15,6 +15,7 @@ from argparse import ArgumentParser
 import psycopg2
 from psycopg2.extras import RealDictCursor
 
+
 from middletier_config import cfg, rdr, st
 from middletier_config import hal_link_templates, hal_queries, sparql_hal_queries
 from middletier_config import sorts, facets
