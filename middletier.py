@@ -513,8 +513,8 @@ def get_primary_name(names):
     candidates = []
     for name in names:
         if name["type"] == "Name":
-            langs = [x.get("equivalent", {"id": None})["id"] for x in name.get("language", [])]
-            cxns = [x.get("equivalent", {"id": None})["id"] for x in name.get("classified_as", [])]
+            langs = [x.get("equivalent", [{"id": None}])[0]["id"] for x in name.get("language", [])]
+            cxns = [x.get("equivalent", [{"id": None}])[0]["id"] for x in name.get("classified_as", [])]
             if ENGLISH in langs and PRIMARY in cxns:
                 return name
             elif PRIMARY in cxns:
