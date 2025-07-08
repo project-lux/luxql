@@ -596,4 +596,4 @@ BIND(geof:centroid(?coords) AS ?centroid)
 # --- Main Execution ---
 if __name__ == "__main__":
     print("Starting uvicorn server...")
-    uvicorn.run(app, host="0.0.0.0", port=args.port, log_level=args.log_level)
+    uvicorn.run(app, host="0.0.0.0", port=args.port, log_level=args.loglevel)
