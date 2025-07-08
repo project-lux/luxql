@@ -557,11 +557,11 @@ class SparqlTranslator:
             strips.append(Triple(cfvar, "textSearch:entity", nameVar))
             svc.add_triples(strips)
             top.add_nested_graph_pattern(svc)
-            if self.calculate_scores:
-                binds = []
-                for x in range(wx):
-                    binds.append(f"COALESCE(?score_{self.counter}{x}, 0)")
-                top.add_binding(Binding(" + ".join(binds), f"?score_{self.counter}"))
+            # if self.calculate_scores:
+            #    binds = []
+            #    for x in range(wx):
+            #        binds.append(f"COALESCE(?score_{self.counter}{x}, 0)")
+            #    top.add_binding(Binding(" + ".join(binds), f"?score_{self.counter}"))
 
         elif query.field == self.anywhere_field:
             # This can't be text:A and text:B and text:C OR ref:A and ref:B and ref:C
