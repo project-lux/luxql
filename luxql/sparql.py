@@ -22,7 +22,10 @@ class SparqlTranslator:
 
         self.remove_diacritics = False
         self.min_word_chars = 4
-        self.padding_char = "Þ"
+        # self.padding_char2 = "Þ"
+        self.padding_char = b"\xc3\xbe".decode("utf-8")
+
+        # assert self.padding_char == self.padding_char2
 
         self.anywhere_field = "text"
         self.id_field = "id"
