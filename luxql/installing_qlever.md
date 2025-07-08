@@ -45,7 +45,7 @@ exit
 
 
 nohup python ./load-json-to-postgres.py 0 > 0_log.txt &
-// out to 11 > 11_log.txt 
+// out to 11 > 11_log.txt
 
 
 
@@ -98,3 +98,38 @@ pip install ujson psycopg2-binary ply fastapi requests uvicorn aiohttp
 // edit to look at the right psql table
 // edit at end to change the port
 // todo: make these command line variables
+
+
+
+
+
+
+### Test Queries
+
+```
+PREFIX lux: <https://lux.collections.yale.edu/ns/>
+PREFIX textSearch: <https://qlever.cs.uni-freiburg.de/textSearch/>
+SELECT ?uri ?name_0 WHERE {
+  ?uri a lux:Item ; lux:itemName ?name_0 .
+  SERVICE textSearch: {
+    ?ts0 textSearch:contains ?cf00 .
+    ?cf00 textSearch:word "twoÞ" .
+    ?cf00 textSearch:score ?score_00 .
+    ?ts0 textSearch:contains ?cf01 .
+    ?cf01 textSearch:entity ?name_0 .
+  }
+}
+LIMIT 20
+```
+
+
+```
+PREFIX lux: <https://lux.collections.yale.edu/ns/>
+SELECT ?uri ?name_0 WHERE {
+  ?uri a lux:Item ; lux:itemName ?name_0 .
+  ?text ql:contains-entity ?name_0 .
+  ?text ql:contains-word "twoÞ" .
+}
+LIMIT 20
+```
+

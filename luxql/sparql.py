@@ -609,7 +609,7 @@ COALESCE(?score_text_{self.counter}{wx}, 0) * {self.text_weight}",
             # parent.add_binding(Binding(" + ".join(binds), f"?score_{self.counter}"))
             self.scored.append(self.counter)
         if phrases:
-            fvar = f"?field2{self.counter}0"
+            fvar = f"?fld2{self.counter}0"
             ### FIXME: How to also test OR in name text?
             for p in phrases:
                 top.add_filter(Filter(f'CONTAINS(LCASE({fvar}), "{p}")'))
