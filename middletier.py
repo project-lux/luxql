@@ -53,7 +53,7 @@ parser.add_argument("--pageLength", type=int, help="Page length for pagination",
 
 args, rest = parser.parse_known_args()
 
-MY_URI = "{protocol}://{uri_host}:{port}{path}"
+MY_URI = f"{args.protocol}://{args.host}:{args.port}{args.path}"
 SPARQL_ENDPOINT = args.sparql
 PAGE_LENGTH = args.pageLength
 DATA_URI = args.data_uri
