@@ -609,7 +609,7 @@ COALESCE(?score_text_{self.counter}{wx}, 0) * {self.text_weight}",
             binds = []
             for x in range(wx):
                 binds.append(f"COALESCE(?score_{self.counter}{x}, 0)")
-            # parent.add_binding(Binding(" + ".join(binds), f"?score_{self.counter}"))
+            parent.add_binding(Binding(" + ".join(binds), f"?score_{self.counter}"))
             self.scored.append(self.counter)
         if phrases:
             fvar = f"?fld2{self.counter}0"
