@@ -126,10 +126,21 @@ LIMIT 20
 ```
 PREFIX lux: <https://lux.collections.yale.edu/ns/>
 SELECT ?uri ?name_0 WHERE {
-  ?uri a lux:Item ; lux:itemName ?name_0 .
-  ?text ql:contains-entity ?name_0 .
-  ?text ql:contains-word "twoÞ" .
-}
-LIMIT 20
+  ?uri a lux:Item ; lux:itemName ?name_0 . ?text ql:contains-entity ?name_0 . ?text ql:contains-word "twoÞ" . } LIMIT 20
 ```
 
+```
+PREFIX lux: <https://lux.collections.yale.edu/ns/>
+PREFIX textSearch: <https://qlever.cs.uni-freiburg.de/textSearch/>
+SELECT DISTINCT ?uri ?fld100 WHERE {
+  ?uri a lux:Item ;
+       lux:itemAny/lux:primaryName ?fld100 .
+  SERVICE textSearch: {
+    ?ts100 textSearch:contains [ textSearch:word "chekhov" ] .
+    ?ts100 textSearch:contains [ textSearch:entity ?fld100 ] .
+    ?ts101 textSearch:contains [ textSearch:word "quartet" ] .
+    ?ts101 textSearch:contains [ textSearch:entity ?fld100 ] .
+  }
+  FILTER (CONTAINS(LCASE(?fld100),"chekhov quartet"))
+}
+```

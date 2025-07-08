@@ -173,6 +173,7 @@ class SparqlTranslator:
         self.counter = 0
         self.scored = []
         self.calculate_scores = False
+        self.calculate_scores = True  # always calculate scores for now until cache key is fixed
         sparql = SelectQuery(limit=limit, offset=offset)
         for pfx, uri in self.prefixes.items():
             sparql.add_prefix(Prefix(pfx, uri))
