@@ -92,7 +92,9 @@ for block in hal_queries.values():
 with open("config/hal_link_templates.json") as fh:
     hal_link_templates = json.load(fh)
 for k, v in hal_link_templates.items():
-    hal_link_templates[k] = v.replace("{searchUriHost}", MY_URI)
+    hal_link_templates[k] = v.replace("{searchUriHost}", MY_URI[:-1])
+
+# strip trailing /
 
 # TODO: Test if a single query for ?uri ?pred <uri> and then looking for which hal
 # links match the returned predicates would be faster or not
