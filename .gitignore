@@ -3,9 +3,8 @@ __pycache__/
 *.py[cod]
 *$py.class
 
-cache/*
 hal_cache/*
-queries/*
+queries/*js
 
 # C extensions
 *.so
