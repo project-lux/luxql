@@ -38,7 +38,7 @@ parser.add_argument("--path", type=str, help="Path for URI substitution", defaul
 parser.add_argument("--data-uri", type=str, help="Data URI for URI substitution", default=data_uri)
 
 parser.add_argument("--pageLength", type=int, help="Page length for pagination", default=20)
-
+parser.add_argument("--portal", type=str, help="Which source unit, if any, to filter for", default="")
 
 args, rest = parser.parse_known_args()
 
@@ -47,6 +47,7 @@ SPARQL_ENDPOINT = args.sparql
 PAGE_LENGTH = args.pageLength
 DATA_URI = args.data_uri
 PG_TABLE = args.table
+PORTAL_SOURCE = args.portal
 
 ENGLISH = "http://vocab.getty.edu/aat/300388277"
 PRIMARY = "http://vocab.getty.edu/aat/300404670"

@@ -9,16 +9,14 @@ import copy
 import aiohttp
 import urllib
 
-
 import psycopg2
 from psycopg2.extras import RealDictCursor
-
 
 from middletier_config import cfg, rdr, st, sorts, facets, args
 from middletier_config import hal_link_templates, hal_queries, sparql_hal_queries
 from middletier_config import related_list_names, related_list_queries, related_list_sparql
 from middletier_config import MY_URI, SPARQL_ENDPOINT, PAGE_LENGTH, DATA_URI, PG_TABLE
-from middletier_config import ENGLISH, PRIMARY, RESULTS_FIELDS
+from middletier_config import ENGLISH, PRIMARY, RESULTS_FIELDS, PORTAL_SOURCE
 
 from boolean_query_parser import BooleanQueryParser
 
@@ -30,7 +28,6 @@ conn = psycopg2.connect(user=args.user, dbname=args.db)
 # * figure out how to create the related list per-entry queries
 # * Add a "no" option for hasDigitalImage
 # * get "quoted string" for anywhere to match in ref name
-# * do isPublicDomain and isOnline (in data, plus code)
 #
 
 ### Extensions
@@ -39,23 +36,6 @@ conn = psycopg2.connect(user=args.user, dbname=args.db)
 # * Allow variables in the queries (done)
 #
 
-
-### Worked around bugs
-#
-# * words with 3 or fewer characters cause a crash in qlever:
-#   https://github.com/ad-freiburg/qlever/issues/1404
-#   If we could configure prefix size to 1, we could avoid (line 401 in TextIndexBuilder.cpp)
-#   Workaround: pad the words with Thorn
-#   Remaining: some words still don't work  (e.g. j m w turner)
-#
-# * ' - and other characters cause text queries to fail (e.g. bobby o'malley)
-#   _ord()_ variable name doesn't actually match anything :(
-#   Workaround: Use fixed version of the code :)
-#   Remaining: some characters still don't work
-#
-# * textSearch service doesn't work
-#   Workaround: Don't use textSearch until it's fixed
-#
 
 app = FastAPI()
 origins = ["*"]
@@ -120,7 +100,6 @@ async def do_search(scope, q={}, page=1, pageLength=PAGE_LENGTH, sort=""):
         # <set-uri> lux:setMemberOfSet ?parent .
         # ?parent lux:setClassification <https://lux.collections.yale.edu/data/concept/0c8e015e-8ead-43e7-ad8c-c06c08448019>
 
-        # print(q)
         return JSONResponse({})
 
     page = int(page)
@@ -369,9 +348,11 @@ async def do_related_list(scope, name, uri, page=1):
                 all_res[what] = [(name, ct, sqry)]
 
     # FIXME: These queries aren't complete
-    # https://lux.collections.yale.edu/api/related-list/concept?&name=relatedToAgent&uri=https%3A%2F%2Flux.collections.yale.edu%2Fdata%2Fperson%2F66049111-383e-4526-9632-2e9b6b6302dd
+    # https://lux.collections.yale.edu/api/related-list/concept?&name=relatedToAgent
+    #       &uri=https%3A%2F%2Flux.collections.yale.edu%2Fdata%2Fperson%2F66049111-383e-4526-9632-2e9b6b6302dd
     # vs
-    # http://localhost:5001/api/related-list/concept?name=relatedToAgent&uri=https%3A//lux.collections.yale.edu/data/person/66049111-383e-4526-9632-2e9b6b6302dd
+    # http://localhost:5001/api/related-list/concept?name=relatedToAgent
+    #       &uri=https%3A//lux.collections.yale.edu/data/person/66049111-383e-4526-9632-2e9b6b6302dd
     # Need to include `what` in the query, as per facets
 
     all_sort = sorted(cts, key=cts.get, reverse=True)
