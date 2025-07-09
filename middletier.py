@@ -26,7 +26,7 @@ from boolean_query_parser import BooleanQueryParser
 parser = ArgumentParser()
 
 user = getpass.getuser()
-table = "merged_data_cache"
+table = "lux_data_cache"
 sparql = "http://localhost:7010/sparql"
 port = 5000
 uri_host = "localhost"
@@ -208,7 +208,10 @@ async def do_search(scope, q={}, page=1, pageLength=PAGE_LENGTH, sort=""):
     spq2 = st.translate_search_count(parsed, scope=scope)
     qt2 = spq2.get_text()
     ttl_res = await fetch_sparql(qt2)
-    ttl = ttl_res[0]["count"]["value"]
+    try:
+        ttl = ttl_res[0]["count"]["value"]
+    except Exception:
+        ttl = 0
     uq = urllib.parse.quote(q)
 
     js = {
