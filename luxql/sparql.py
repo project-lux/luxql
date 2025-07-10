@@ -21,7 +21,7 @@ class SparqlTranslator:
         }
 
         self.remove_diacritics = False
-        self.min_word_chars = 4
+        self.min_word_chars = 0
         # self.padding_char2 = "Þ"
         self.padding_char = b"\xc3\xbe".decode("utf-8")
 
