@@ -9,34 +9,44 @@ config = dict(
     booleans=["AND", "OR", "NOT"],
     comparitors=[">", "<", ">=", "<=", "==", "!="],
     leaf_scopes=["text", "date", "float", "boolean"],
+    cache_remote_config=True,
 )
 
 
 class LuxConfig(object):
     """Handler for retrieving and processing the LUX search configuration"""
 
-    def __init__(self, config=config):
+    def __init__(self, config=config, lux_config=""):
         self.module_config = config
-        url = config["lux_config"]
+        if not lux_config:
+            lux_config = os.path.join(os.path.dirname(__file__), "advanced-search-config.json")
+        if not os.path.exists(lux_config):
+            lux_config = ""
+
+        self.remote_lux_config = config["lux_config"]
 
         # read from disk
-        fn = os.path.join(os.path.dirname(__file__), "advanced-search-config.json")
-        with open(fn) as fh:
-            js = json.load(fh)
-        self.lux_config = js
-
-        # try:
-        #    resp = requests.get(url, timeout=10)
-        #    if resp.status_code == 200:
-        #        self.lux_config = resp.json()
-        #        # recache it
-        #        fn = os.path.join(os.path.dirname(__file__), "advanced-search-config.json")
-        #        with open(fn, "w") as fh:
-        #            fh.write(json.dumps(self.lux_config, indent=2))
-        #    else:
-        #        raise ValueError(f"Couldn't retrieve configuration from {url}")
-        # except Exception:
-        #    raise
+        if lux_config:
+            with open(lux_config) as fh:
+                js = json.load(fh)
+            self.lux_config = js
+        elif self.remote_lux_config:
+            # Read from remote LUX instance
+            try:
+                resp = requests.get(self.remote_lux_config, timeout=10)
+                if resp.status_code == 200:
+                    self.lux_config = resp.json()
+                    if config["cache_remote_config"]:
+                        fn = os.path.join(os.path.dirname(__file__), "advanced-search-config.json")
+                        with open(fn, "w") as fh:
+                            fh.write(json.dumps(self.lux_config, indent=2))
+                else:
+                    raise ValueError(f"Couldn't retrieve configuration from {self.remote_lux_config}")
+            except Exception:
+                raise
+        else:
+            # No configuration provided, fail
+            raise ValueError("No search configuration provided or available")
 
         self.scopes = list(self.lux_config["terms"].keys())
 
