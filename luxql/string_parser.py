@@ -354,7 +354,7 @@ def p_error(p):
 parser = yacc.yacc()
 
 
-class BooleanQueryParser:
+class QueryParser:
     """
     A parser for boolean queries using PLY (Python Lex-Yacc).
 
@@ -488,7 +488,7 @@ def print_ast(node, indent=0):
 
 # Quick usage examples and basic testing
 if __name__ == "__main__":
-    parser = BooleanQueryParser()
+    parser = QueryParser()
 
     # Test queries with fields
     test_queries = [

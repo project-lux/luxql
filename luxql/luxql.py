@@ -263,23 +263,23 @@ class LuxLeaf(LuxQuery):
         elif info["relation"] == "float":
             # test value is a number
             try:
-                f = float(self.value)
+                float(self.value)
             except ValueError:
                 raise ValueError("Numbers must be expressed using only numbers and .")
             if not self.comparitor:
                 raise ValueError("Numbers require a comparitor")
-            elif not self.comparitor in self.config.module_config["comparitors"]:
+            elif self.comparitor not in self.config.module_config["comparitors"]:
                 raise ValueError(f"{self.comparitor} is not a valid comparitor")
         elif info["relation"] == "boolean":
             # test is bool
             if self.value not in ["0", "1", True, False]:
-                raise ValueError(f"Booleans must be expressed as either '1' or '0' or a native boolean")
+                raise ValueError("Booleans must be expressed as either '1' or '0' or a native boolean")
         else:
             # broken??
             raise ValueError(f"Unknown scope: {info['relation']}")
 
     def add(self, what):
-        raise ValueError(f"You cannot add further query components to a Leaf")
+        raise ValueError("You cannot add further query components to a Leaf")
 
     def to_json(self):
         if self.value is None:
@@ -314,7 +314,7 @@ class LuxRelationship(LuxQuery):
     def calculate_scopes(self):
         super().calculate_scopes()
         for s in self.possible_provides_scopes:
-            if not s in self.config.scopes:
+            if s not in self.config.scopes:
                 raise ValueError(f"Unknown relationship scope '{s}' in {self.field}")
 
     def test_my_value(self, info):
@@ -323,7 +323,7 @@ class LuxRelationship(LuxQuery):
 
     def add(self, what):
         if self.children:
-            raise ValueError(f"Relationship already has a child")
+            raise ValueError("Relationship already has a child")
         super().add(what)
 
     def to_json(self):
