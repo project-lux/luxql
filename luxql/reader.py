@@ -13,7 +13,7 @@ class JsonReader:
             raise ValueError("Query is not a dictionary")
         if not self.config:
             raise ValueError("Reader is missing config")
-        if not scope in self.config.scopes:
+        if scope not in self.config.scopes:
             raise ValueError(f"Unknown query scope '{scope}'")
 
         api = LuxAPI(scope)

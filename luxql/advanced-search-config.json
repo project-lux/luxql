@@ -698,6 +698,11 @@
         "helpText": "Search for Places where the specified Collections were published.",
         "relation": "set"
       },
+      "setCreatedHere": {
+        "label": "are the location of creation of",
+        "helpText": "Search for Places where the specified Collections were created.",
+        "relation": "set"
+      },
       "publishedHere": {
         "label": "are the location of the publication of",
         "helpText": "Search for Places where the specified Works were published.",
