@@ -1,15 +1,18 @@
+import json
 import os
 import re
-import json
+
 import requests
 
-
 config = dict(
-    lux_config="https://lux.collections.yale.edu/api/advanced-search-config",
+    lux_base="https://lux.collections.yale.edu/api/",
+    lux_config="advanced-search-config",
+    lux_stats="stats",
     booleans=["AND", "OR", "NOT"],
     comparitors=[">", "<", ">=", "<=", "==", "!="],
     leaf_scopes=["text", "date", "float", "boolean"],
     cache_remote_config=True,
+    cache_remote_stats=False,
 )
 
 
@@ -19,11 +22,12 @@ class LuxConfig(object):
     def __init__(self, config=config, lux_config=""):
         self.module_config = config
         if not lux_config:
-            lux_config = os.path.join(os.path.dirname(__file__), "advanced-search-config.json")
+            lux_config = os.path.join(os.path.dirname(__file__), f"{config['lux_config']}.json")
         if not os.path.exists(lux_config):
             lux_config = ""
 
-        self.remote_lux_config = config["lux_config"]
+        self.remote_lux_config = f"{config['lux_base']}{config['lux_config']}"
+        self.remote_lux_stats = f"{config['lux_base']}{config['lux_stats']}"
 
         # read from disk
         if lux_config:
@@ -44,9 +48,22 @@ class LuxConfig(object):
                     raise ValueError(f"Couldn't retrieve configuration from {self.remote_lux_config}")
             except Exception:
                 raise
+        if self.remote_lux_stats:
+            try:
+                resp = requests.get(self.remote_lux_stats, timeout=10)
+                if resp.status_code == 200:
+                    self.lux_stats = resp.json()
+                    if config["cache_remote_stats"]:
+                        fn = os.path.join(os.path.dirname(__file__), "stats.json")
+                        with open(fn, "w") as fh:
+                            fh.write(json.dumps(self.lux_stats, indent=2))
+                else:
+                    raise ValueError(f"Couldn't retrieve statistics from {self.remote_lux_stats}")
+            except Exception:
+                raise
         else:
             # No configuration provided, fail
-            raise ValueError("No search configuration provided or available")
+            raise ValueError("No data statistics provided or available")
 
         self.scopes = list(self.lux_config["terms"].keys())
 
@@ -56,12 +73,18 @@ class LuxConfig(object):
         )
 
         self.inverted = {}
+        self.terms = {"leaf": set([]), "rel": set([])}
         for scope, terms in self.lux_config["terms"].items():
             for t in terms.keys():
                 try:
                     self.inverted[t].append(scope)
                 except Exception:
                     self.inverted[t] = [scope]
+                relt = terms[t]["relation"]
+                if relt in self.scopes:
+                    self.terms["rel"].add(t)
+                else:
+                    self.terms["leaf"].add(t)
 
         self.possible_options = {}
         for k in self.lux_config["options"].values():
@@ -106,6 +129,11 @@ class LuxScope(object):
                 f"Cannot add a new {what.class_name} of {what.field} to a scope of {self.provides_scope}"
             )
 
+    def calculate_complexity(self):
+        # recursively walk the query and build complexity, caching at each level
+        self.complexity = sum([x.calculate_complexity() for x in self.children])
+        return self.complexity
+
 
 class LuxAPI(LuxScope):
     """Minimal API instance that downstream applications should inherit"""
@@ -136,6 +164,7 @@ class LuxQuery(LuxScope):
         self.requires_scope = None
         self.possible_parent_scopes = []
         self.possible_provides_scopes = []
+        self.complexity = -1
 
     def calculate_scopes(self):
         self.possible_parent_scopes = self.config.inverted.get(self.field, [])
@@ -204,6 +233,14 @@ class LuxBoolean(LuxQuery):
         super().add(what)
         self.possible_parent_scopes = what.possible_parent_scopes
 
+    def calculate_complexity(self):
+        down = super().calculate_complexity()
+        if self.field == "OR":
+            self.complexity = 2 + down
+        else:  # AND or NOT require more comparisons
+            self.complexity = 6 + down
+        return self.complexity
+
 
 class LuxLeaf(LuxQuery):
     """A Leaf node in the query, where the field + (comparitor +) term (+ options) sits"""
@@ -224,6 +261,25 @@ class LuxLeaf(LuxQuery):
         self.weight = weight
         self.complete = complete
         self.calculate_scopes()
+
+    def calculate_complexity(self):
+        c = 1
+        if self.weight:
+            c += 1
+        if self.comparitor:
+            if ">" in self.comparitor or "<" in self.comparitor:
+                c += 10
+            else:
+                c += 1
+        if self.provides_scope == "date":
+            c += 3
+        # fields aren't really relevant for Leaf node complexity?
+        # Give a slight bump on anywhere (compared to name or etc)
+        if self.field == "anywhere":
+            c += 1
+
+        self.complexity = c
+        return self.complexity
 
     def calculate_scopes(self):
         super().calculate_scopes()
@@ -330,3 +386,11 @@ class LuxRelationship(LuxQuery):
         if not self.children:
             raise ValueError(f"Relationship {self.field} is missing children")
         return {self.field: self.children[0].to_json()}
+
+    def calculate_complexity(self):
+        down = super().calculate_complexity()
+        a = self.config.lux_stats["estimates"]["searchScopes"].get(self.provides_scope, 1)
+        b = self.config.lux_stats["estimates"]["searchScopes"].get(self.parent.provides_scope, 1)
+        c = len(str(a * b))
+        self.complexity = c + down
+        return self.complexity
