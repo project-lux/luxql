@@ -1,4 +1,4 @@
-from . import LuxAPI, LuxLeaf, LuxBoolean, LuxRelationship
+from .luxql import LuxAPI, LuxBoolean, LuxLeaf, LuxRelationship
 
 
 class JsonReader:

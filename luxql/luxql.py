@@ -166,6 +166,35 @@ class LuxQuery(LuxScope):
         self.possible_provides_scopes = []
         self.complexity = -1
 
+    def __and__(self, other):
+        b = LuxBoolean("AND")
+        b.add(self)
+        b.add(other)
+        return b
+
+    def __rand__(self, other):
+        b = LuxBoolean("AND")
+        b.add(other)
+        b.add(self)
+        return b
+
+    def __or__(self, other):
+        b = LuxBoolean("OR")
+        b.add(self)
+        b.add(other)
+        return b
+
+    def __ror__(self, other):
+        b = LuxBoolean("OR")
+        b.add(other)
+        b.add(self)
+        return b
+
+    def __invert__(self):
+        b = LuxBoolean("NOT")
+        b.add(self)
+        return b
+
     def calculate_scopes(self):
         self.possible_parent_scopes = self.config.inverted.get(self.field, [])
         for s in self.possible_parent_scopes:

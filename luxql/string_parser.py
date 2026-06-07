@@ -26,8 +26,7 @@ Examples:
 import ply.lex as lex
 import ply.yacc as yacc
 
-from . import LuxAPI, LuxLeaf, LuxBoolean, LuxRelationship
-
+from .luxql import LuxAPI, LuxBoolean, LuxLeaf, LuxRelationship
 
 # Token definitions
 tokens = ("AND", "OR", "NOT", "LPAREN", "RPAREN", "QUOTED_STRING", "WORD", "COLON", "ARROW", "COMPARATOR")
@@ -371,7 +370,7 @@ class QueryParser:
         - Proper operator precedence (NOT > AND > OR)
 
     Example:
-        parser = BooleanQueryParser()
+        parser = QueryParser()
         ast = parser.parse('title:python author:gibson "machine learning" OR tags:scala')
     """
 
