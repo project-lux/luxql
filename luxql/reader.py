@@ -1,4 +1,4 @@
-from .luxql import LuxAPI, LuxBoolean, LuxLeaf, LuxRelationship
+from .query import LuxAPI, LuxBoolean, LuxLeaf, LuxRelationship
 
 
 class JsonReader:
@@ -55,5 +55,13 @@ class JsonReader:
         opts = query.get("_options", [])
         wgt = query.get("_weight", None)
         comp = query.get("_complete", None)
-        leaf = LuxLeaf(k, value=query[k], parent=parent, comparitor=cmpr, options=opts, weight=wgt, complete=comp)
+        leaf = LuxLeaf(
+            k,
+            value=query[k],
+            parent=parent,
+            comparitor=cmpr,
+            options=opts,
+            weight=wgt,
+            complete=comp,
+        )
         return leaf

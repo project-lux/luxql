@@ -26,10 +26,21 @@ Examples:
 import ply.lex as lex
 import ply.yacc as yacc
 
-from .luxql import LuxAPI, LuxBoolean, LuxLeaf, LuxRelationship
+from .query import LuxAPI, LuxBoolean, LuxLeaf, LuxRelationship
 
 # Token definitions
-tokens = ("AND", "OR", "NOT", "LPAREN", "RPAREN", "QUOTED_STRING", "WORD", "COLON", "ARROW", "COMPARATOR")
+tokens = (
+    "AND",
+    "OR",
+    "NOT",
+    "LPAREN",
+    "RPAREN",
+    "QUOTED_STRING",
+    "WORD",
+    "COLON",
+    "ARROW",
+    "COMPARATOR",
+)
 
 
 # Token rules
@@ -200,7 +211,12 @@ class Term(ASTNode):
                 if top is None:
                     top = rel
                 current_parent = rel
-            leaf = LuxLeaf(self.fields[-1], current_parent, str(self.value), comparitor=self.comparitor)
+            leaf = LuxLeaf(
+                self.fields[-1],
+                current_parent,
+                str(self.value),
+                comparitor=self.comparitor,
+            )
             if top:
                 return top
             else:

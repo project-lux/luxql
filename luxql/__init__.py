@@ -1,5 +1,14 @@
-from .luxql import LuxAPI, LuxLeaf, LuxBoolean, LuxRelationship, LuxConfig  # noqa
-from .reader import JsonReader  # noqa
-from .string_parser import QueryParser  # noqa
+from .config import LuxConfig
+from .query import LuxAPI, LuxBoolean, LuxLeaf, LuxRelationship
+from .reader import JsonReader
+from .string_parser import QueryParser
 
-__all__ = ["LuxAPI", "LuxLeaf", "LuxBoolean", "LuxRelationship", "LuxConfig", "JsonReader"]
+__all__ = [
+    "LuxAPI",
+    "LuxLeaf",
+    "LuxBoolean",
+    "LuxRelationship",
+    "LuxConfig",
+    "JsonReader",
+    "QueryParser",
+]
